@@ -1,1 +1,1 @@
-"""Northstar package."""
+"""API package for Northstar"""
