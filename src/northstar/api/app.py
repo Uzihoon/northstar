@@ -1,9 +1,18 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
 from northstar.config import get_settings
-from northstar.ollama_client import get_ollama_client
+from northstar.ollama_client import OllamaUnavailableError, get_ollama_client
 
 app = FastAPI(title="Northstar API")
+
+class ChatRequest(BaseModel):
+  prompt: str
+  model: str | None = None
+
+class ChatResponse(BaseModel):
+  model: str
+  message: str
 
 @app.get("/health")
 def health() -> dict[str, str]:
@@ -19,4 +28,21 @@ def health() -> dict[str, str]:
 @app.get("/models")
 def models() -> dict[str, list[str]]:
   client = get_ollama_client()
-  return {"models": client.list_models()}
+  
+  try:
+    return {"models": client.list_models()}
+  except OllamaUnavailableError as exc:
+    raise HTTPException(status_code=503, detail=str(exc)) from exc
+  
+@app.post("/chat", response_model=ChatResponse)
+def chat(request: ChatRequest) -> ChatRequest:
+  settings = get_settings()
+  resolved_model = request.model or settings.default_model
+  client = get_ollama_client()
+
+  try:
+    message = client.chat(prompt=request.prompt, model=resolved_model)
+  except OllamaUnavailableError as exc:
+    raise HTTPException(status_code=503, detail=str(exc)) from exc
+  
+  return ChatResponse(model=resolved_model, message=message)
