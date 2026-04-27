@@ -4,6 +4,7 @@ import typer
 
 from northstar.config import get_settings
 from northstar.ollama_client import OllamaError, get_ollama_client
+from northstar.agent.loop import run_travel_agent
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -100,6 +101,33 @@ def ask_stream(
   except OllamaError as exc:
     typer.secho(str(exc), fg=typer.colors.RED, err=True)
     raise typer.Exit(code=1) from exc
+  
+@app.command()
+def plan(
+  prompt: str,
+  model: str | None = typer.Option(None, "--model", "-m"),
+) -> None:
+  """Run the first tool-using travel planner loop."""
+  settings = get_settings()
+  resolved_model = model or settings.default_model
+  client = get_ollama_client()
+
+  try:
+    result = run_travel_agent(
+      prompt=prompt,
+      model=resolved_model,
+      client=client
+    )
+  except OllamaError as exc:
+    typer.secho(str(exc), fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1) from exc
+  
+  for tool_call in result.tool_results:
+    typer.echo(f"[tool] {tool_call.name} {json.dumps(tool_call.arguments)}")
+    typer.echo(f"[tool_result] {json.dumps(tool_call.result)}")
+
+  typer.echo("")
+  typer.echo(result.answer)
 
 def main() -> None:
   app()

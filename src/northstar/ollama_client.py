@@ -1,5 +1,5 @@
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Iterator, Literal
 
 import httpx
@@ -19,6 +19,22 @@ class ChatStreamEvent:
   kind: Literal["thinking", "content", "tool_call", "done"]
   value: str | dict[str, Any] | None = None
 
+@dataclass(frozen=True)
+class ToolFunctionCall:
+  name: str
+  arguments: dict[str, Any]
+
+@dataclass(frozen=True)
+class ToolCall:
+  function: ToolFunctionCall
+  type: str = "function"
+
+@dataclass(frozen=True)
+class ChatTurn:
+  content: str = ""
+  thinking: str = ""
+  tool_calls: list[ToolCall] = field(default_factory=list)
+
 class OllamaClient:
   def __init__(self, base_url: str, timeout: float = 10.0) -> None:
     self.base_url = base_url.rstrip("/")
@@ -33,25 +49,16 @@ class OllamaClient:
     ]
   
   def chat(self, prompt: str, model: str) -> str:
-    payload = self._request(
-      "POST",
-      "/api/chat",
-      timeout=60.0,
-      json={
-        "model": model,
-        "messages": [
-          {"role": "user", "content": prompt},
-        ],
-        "stream": False
-      },
+    turn = self.chat_turn(
+      messages=[{"role": "user", "content": prompt}],
+      model=model,
+      think=False,
     )
 
-    message = payload.get("message", {}).get("content")
-
-    if not isinstance(message, str):
-      raise RuntimeError("Ollama returned an unexpected chat response.")
+    if not turn.content:
+      raise RuntimeError("Ollama returned an empty chat response.")
     
-    return message
+    return turn.content
   
   def chat_stream(
       self,
@@ -91,6 +98,33 @@ class OllamaClient:
           kind="done",
           value=done_reason if isinstance(done_reason, str) else None,
         )
+  
+  def chat_turn(
+      self,
+      *,
+      messages: list[dict[str, Any]],
+      model: str,
+      tools: list[dict[str, Any]] | None = None,
+      think: bool = True,
+  ) -> ChatTurn:
+    payload = {
+      "model": model,
+      "messages": messages,
+      "stream": False,
+      "think": think,
+    }
+
+    if tools:
+      payload["tools"] = tools
+    
+    response = self._request(
+      "POST",
+      "/api/chat",
+      timeout=60.0,
+      json=payload
+    )
+
+    return self._parse_chat_turn(response)
 
   def _request(self, method: str, path: str, **kwargs) -> dict[str, Any]:
     timeout = kwargs.pop("timeout", self.timeout)
@@ -145,7 +179,41 @@ class OllamaClient:
     except json.JSONDecodeError as exc:
       raise RuntimeError("Ollama returned malformed streaming JSON") from exc
 
-  
+  def _parse_chat_turn(self, payload: dict[str, Any]) -> ChatTurn:
+    message = payload.get("message", {})
+
+    content = message.get("content")
+    if not isinstance(content, str):
+      content = ""
+
+    thinking = message.get("thinking")
+    if not isinstance(message, str):
+      thinking = ""
+
+    parsed_tool_calls: list[ToolCall] = []
+    for raw_tool_call in message.get("tool_calls", []):
+      function = raw_tool_call.get("function", {})
+      name = function.get("name")
+      arguments = function.get("arguments", {})
+
+      if isinstance(name, str) and isinstance(arguments, dict):
+        parsed_tool_calls.append(
+          ToolCall(
+            type=str(raw_tool_call.get("type", "function")),
+            function=ToolFunctionCall(
+              name=name,
+              arguments=arguments
+            ),
+          )
+        )
+
+    return ChatTurn(
+      content=content,
+      thinking=thinking,
+      tool_calls=parsed_tool_calls
+    )
+
+
 def get_ollama_client() -> OllamaClient:
   settings = get_settings()
   return OllamaClient(base_url=settings.ollama_base_url)
