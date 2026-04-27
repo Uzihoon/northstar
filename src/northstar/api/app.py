@@ -35,7 +35,7 @@ def models() -> dict[str, list[str]]:
     raise HTTPException(status_code=503, detail=str(exc)) from exc
   
 @app.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest) -> ChatRequest:
+def chat(request: ChatRequest) -> ChatResponse:
   settings = get_settings()
   resolved_model = request.model or settings.default_model
   client = get_ollama_client()
