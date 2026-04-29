@@ -125,6 +125,38 @@ class OllamaClient:
     )
 
     return self._parse_chat_turn(response)
+  
+  def structured_chat(
+      self,
+      *,
+      messages: list[dict[str, Any]],
+      model: str,
+      response_format: dict[str, Any],
+  ) -> dict[str, Any]:
+    payload = self._request(
+      "POST",
+      "/api/chat",
+      timeout=httpx.Timeout(connect=5.0, read=300.0, write=30.0, pool=5.0),
+      json={
+        "model": model,
+        "messages": messages,
+        "stream": False,
+        "format": response_format,
+        "options": {"temperature": 0},
+      },
+    )
+
+    content = payload.get("message", {}).get("content")
+    if not isinstance(content, str):
+      raise RuntimeError(f"Ollama returned an unexpected structured response: {payload!r}")
+
+    try:
+      return json.loads(content)
+    except json.JSONDecodeError as exc:
+      preview = content[:500]
+      raise RuntimeError(
+        f"Ollama returned invalid JSON for structured output. Raw content: {preview!r}"
+      ) from exc
 
   def _request(self, method: str, path: str, **kwargs) -> dict[str, Any]:
     timeout = kwargs.pop("timeout", self.timeout)
@@ -187,7 +219,7 @@ class OllamaClient:
       content = ""
 
     thinking = message.get("thinking")
-    if not isinstance(message, str):
+    if not isinstance(thinking, str):
       thinking = ""
 
     parsed_tool_calls: list[ToolCall] = []

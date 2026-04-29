@@ -5,6 +5,7 @@ import typer
 from northstar.config import get_settings
 from northstar.ollama_client import OllamaError, get_ollama_client
 from northstar.agent.loop import run_travel_agent
+from northstar.agent.extract import TripExtractionError, extract_trip_request
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -102,7 +103,7 @@ def ask_stream(
     typer.secho(str(exc), fg=typer.colors.RED, err=True)
     raise typer.Exit(code=1) from exc
   
-@app.command()
+@app.command("plan")
 def plan(
   prompt: str,
   model: str | None = typer.Option(None, "--model", "-m"),
@@ -128,6 +129,33 @@ def plan(
 
   typer.echo("")
   typer.echo(result.answer)
+
+@app.command("extract-trip")
+def extract_trip(
+  prompt: str,
+  model: str | None = typer.Option(None, "--model", "-m"),
+) -> None:
+  """Extract a structured trip request from free-form text."""
+  settings = get_settings()
+  resolved_model = model or settings.default_model
+  client = get_ollama_client()
+
+  try:
+    trip_request = extract_trip_request(
+      prompt=prompt,
+      model=resolved_model,
+      client=client,
+    )
+  except (OllamaError, TripExtractionError) as exc:
+    typer.secho(str(exc), fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1) from exc
+  
+  typer.echo(
+    json.dumps(
+      trip_request.model_dump(),
+      indent=2,
+    )
+  )
 
 def main() -> None:
   app()
