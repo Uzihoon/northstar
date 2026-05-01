@@ -6,8 +6,21 @@ from northstar.config import get_settings
 from northstar.ollama_client import OllamaError, get_ollama_client
 from northstar.agent.loop import run_travel_agent
 from northstar.agent.extract import TripExtractionError, extract_trip_request
+from northstar.db import get_session
+from northstar.agent.profile_extract import PreferenceExtractionError, extract_preference_update
+from northstar.memory.profile_store import apply_preference_update, load_profile
+
+from sqlalchemy.exc import SQLAlchemyError
 
 app = typer.Typer(no_args_is_help=True)
+
+def exit_with_database_error(exc: SQLAlchemyError) -> None:
+  typer.secho(
+    "Database is unavailable. Check the Postgres SSH tunnel and run `uv run alembic upgrade head`.",
+    fg=typer.colors.RED,
+    err=True,
+  )
+  raise typer.Exit(code=1) from exc
 
 @app.callback()
 def cli() -> None:
@@ -156,6 +169,50 @@ def extract_trip(
       indent=2,
     )
   )
+
+@app.command("show-profile")
+def show_profile(user: str = typer.Option("local", "--user")) -> None:
+  try:
+    with get_session() as session:
+      profile = load_profile(session, user_slug=user)
+  except SQLAlchemyError as exc:
+    exit_with_database_error(exc)
+
+  typer.echo(json.dumps(profile.model_dump(mode="json"), indent=2))
+
+@app.command("learn-profile")
+def learn_profile(
+    text: str,
+    user: str = typer.Option("local", "--user"),
+    source_kind: str = typer.Option("onboarding", "--source-kind"),
+    model: str | None = typer.Option(None, "--model", "-m"),
+) -> None:
+    settings = get_settings()
+    resolved_model = model or settings.default_model
+    client = get_ollama_client()
+
+    try:
+        candidate = extract_preference_update(text=text, model=resolved_model, client=client)
+        with get_session() as session:
+            profile, patch = apply_preference_update(
+                session,
+                user_slug=user,
+                source_kind=source_kind,
+                source_text=text,
+                candidate=candidate,
+            )
+    except (OllamaError, PreferenceExtractionError) as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    except SQLAlchemyError as exc:
+        exit_with_database_error(exc)
+
+    typer.echo("[candidate]")
+    typer.echo(json.dumps(candidate.model_dump(mode="json"), indent=2))
+    typer.echo("[applied]")
+    typer.echo(json.dumps(patch, indent=2))
+    typer.echo("[profile]")
+    typer.echo(json.dumps(profile.model_dump(mode="json"), indent=2))
 
 def main() -> None:
   app()

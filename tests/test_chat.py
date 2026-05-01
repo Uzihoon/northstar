@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 import northstar.api.app as app_module
-from northstar.ollama_client import OllamaUnavailableError
+from northstar.ollama_client import OllamaUnavailableError, OllamaTimeoutError
 
 client = TestClient(app_module.app)
 
@@ -49,3 +49,16 @@ def test_chat_returns_503_when_ollama_is_unavailable(monkeypatch) -> None:
   assert response.json() == {
     "detail": error_message
   }
+
+
+class TimeoutOllamaClient:
+    def chat(self, prompt: str, model: str) -> str:
+        raise OllamaTimeoutError("Ollama took too long to respond.")
+
+def test_chat_returns_503_when_ollama_times_out(monkeypatch) -> None:
+    monkeypatch.setattr(app_module, "get_ollama_client", lambda: TimeoutOllamaClient())
+
+    response = client.post("/chat", json={"prompt": "hello"})
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Ollama took too long to respond."}
