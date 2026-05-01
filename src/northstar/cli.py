@@ -9,6 +9,7 @@ from northstar.agent.extract import TripExtractionError, extract_trip_request
 from northstar.db import get_session
 from northstar.agent.profile_extract import PreferenceExtractionError, extract_preference_update
 from northstar.memory.profile_store import apply_preference_update, load_profile
+from northstar.agent.context import build_active_plan_context
 
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -213,6 +214,39 @@ def learn_profile(
     typer.echo(json.dumps(patch, indent=2))
     typer.echo("[profile]")
     typer.echo(json.dumps(profile.model_dump(mode="json"), indent=2))
+
+@app.command("build-context")
+def build_context(
+    prompt: str,
+    user: str = typer.Option("local", "--user"),
+    model: str | None = typer.Option(None, "--model", "-m"),
+) -> None:
+  """Extract a trip request and merge it with saved profile preferences."""
+  settings = get_settings()
+  resolved_model = model or settings.default_model
+  client = get_ollama_client()
+
+  try:
+    trip_request = extract_trip_request(
+      prompt=prompt,
+      model=resolved_model,
+      client=client,
+    )
+    with get_session() as session:
+      profile = load_profile(session, user_slug=user)
+  except (OllamaError, TripExtractionError) as exc:
+    typer.secho(str(exc), fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1) from exc
+  except SQLAlchemyError as exc:
+    exit_with_database_error(exc)
+
+  context = build_active_plan_context(
+    profile=profile,
+    trip_request=trip_request,
+  )
+
+  typer.echo(json.dumps(context.model_dump(mode="json"), indent=2))
+
 
 def main() -> None:
   app()
