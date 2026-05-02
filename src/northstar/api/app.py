@@ -8,6 +8,7 @@ from northstar.agent.planner_service import generate_and_optionally_save_itinera
 from northstar.db import get_session
 from northstar.config import get_settings
 from northstar.ollama_client import OllamaError, get_ollama_client
+from northstar.memory.plan_store import get_itinerary_plan, list_itinerary_plans
 
 app = FastAPI(title="Northstar API")
 
@@ -85,4 +86,48 @@ def create_itinerary_plan(request: ItineraryPlanRequest) -> dict:
     "trip_request": result.trip_request.model_dump(mode="json"),
     "active_context": result.active_context.model_dump(mode="json"),
     "itinerary": result.itinerary.model_dump(mode="json")
+  }
+
+@app.get("/itinerary-plans")
+def list_saved_itinerary_plans(user: str = "local") -> dict:
+  try:
+    with get_session() as session:
+      plans = list_itinerary_plans(session, user_lsug=user)
+  except SQLAlchemyError as exc:
+    raise HTTPException(status_code=503, detail="Database is unavailable.") from exc
+  
+  return {
+    "plans": [
+      {
+        "plan_id": plan.plan_id,
+        "trip_request_id": plan.trip_request_id,
+        "original_promp": plan.original_prompt,
+        "title": plan.title,
+        "destination": plan.destination,
+        "created_at": plan.created_at,
+      }
+      for plan in plans
+    ]
+  }
+
+@app.get("/itinerary-plans/{plan_id}")
+def get_saved_itinerary_plan(plan_id: str, user: str = "local") -> dict:
+  try:
+    with get_session() as session:
+      plan = get_itinerary_plan(session, user_slug=user, plan_id=plan_id)
+  except SQLAlchemyError as exc:
+    raise HTTPException(status_code=503, detail="Database is unavailable.") from exc
+  
+  if plan is None:
+    raise HTTPException(status_code=404, detail="Itinerary plan not found.")
+  
+  return {
+    "plan_id": plan.plan_id,
+    "trip_request_id": plan.trip_request_id,
+    "original_promp": plan.original_prompt,
+    "trip_request": plan.trip_request,
+    "active_context": plan.active_context,
+    "itinerary": plan.itinerary,
+    "model_name": plan.model_name,
+    "created_at": plan.created_at
   }

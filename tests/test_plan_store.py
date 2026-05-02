@@ -1,0 +1,92 @@
+from collections.abc import Iterator
+
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+
+from northstar.agent.context import ActivePlanContext
+from northstar.agent.itinerary import ItineraryPlan
+from northstar.agent.schemas import TripRequest
+from northstar.db import Base
+from northstar.memory.plan_store import (
+  get_itinerary_plan,
+  list_itinerary_plans,
+  save_itinerary_plan,
+)
+
+
+@pytest.fixture()
+def session() -> Iterator[Session]:
+  engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+  Base.metadata.create_all(bind=engine)
+  SessionLocal = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
+
+  with SessionLocal() as db_session:
+    yield db_session
+
+
+def save_sample_plan(session: Session, user_slug: str = "local"):
+  return save_itinerary_plan(
+    session,
+    user_slug=user_slug,
+    original_prompt="Plan 2 quiet days in Kyoto.",
+    trip_request=TripRequest(
+      destination_city="Kyoto",
+      country="Japan",
+      duration_days=2,
+    ),
+    active_context=ActivePlanContext(
+      destination_city="Kyoto",
+      country="Japan",
+      duration_days=2,
+      interests=["cafes"],
+    ),
+    itinerary=ItineraryPlan(
+      title="A relaxed Kyoto plan",
+      destination="Kyoto, Japan",
+      duration_days=2,
+      preferences_used=["cafes"],
+      assumptions=[],
+      days=[],
+    ),
+    model_name="qwen3.6:27b",
+  )
+
+
+def test_list_itinerary_plans_returns_summaries(session: Session) -> None:
+  saved = save_sample_plan(session)
+
+  plans = list_itinerary_plans(session, user_slug="local")
+
+  assert len(plans) == 1
+  assert plans[0].plan_id == saved.plan_id
+  assert plans[0].title == "A relaxed Kyoto plan"
+  assert plans[0].destination == "Kyoto, Japan"
+
+
+def test_get_itinerary_plan_returns_saved_plan(session: Session) -> None:
+  saved = save_sample_plan(session)
+
+  plan = get_itinerary_plan(
+    session,
+    user_slug="local",
+    plan_id=saved.plan_id,
+  )
+
+  assert plan is not None
+  assert plan.plan_id == saved.plan_id
+  assert plan.trip_request["destination_city"] == "Kyoto"
+  assert plan.active_context["interests"] == ["cafes"]
+  assert plan.itinerary["title"] == "A relaxed Kyoto plan"
+
+
+def test_get_itinerary_plan_returns_none_for_other_user(session: Session) -> None:
+  saved = save_sample_plan(session, user_slug="local")
+
+  plan = get_itinerary_plan(
+    session,
+    user_slug="someone-else",
+    plan_id=saved.plan_id,
+  )
+
+  assert plan is None

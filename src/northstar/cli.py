@@ -12,6 +12,7 @@ from northstar.memory.profile_store import apply_preference_update, load_profile
 from northstar.agent.context import build_active_plan_context
 from northstar.agent.itinerary import ItineraryGenerationError, generate_itinerary_plan
 from northstar.agent.planner_service import generate_and_optionally_save_itinerary
+from northstar.memory.plan_store import get_itinerary_plan, list_itinerary_plans
 
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -304,6 +305,54 @@ def build_context(
 
   typer.echo(json.dumps(context.model_dump(mode="json"), indent=2))
 
+@app.command("list-plans")
+def list_plans(user: str = typer.Option("local", "--user")) -> None:
+  """List saved itinerary plans."""
+  try:
+    with get_session() as session:
+      plans = list_itinerary_plans(session, user_slug=user)
+  except SQLAlchemyError as exc:
+    exit_with_database_error(exc)
+
+  typer.echo(json.dumps([
+    {
+      "plan_id": plan.plan_id,
+      "trip_request_id": plan.trip_request_id,
+      "original_prompt": plan.original_prompt,
+      "title": plan.title,
+      "destination": plan.destination,
+      "created_at": plan.created_at,
+    }
+    for plan in plans
+  ], indent=2))
+
+
+@app.command("show-plan")
+def show_plan(
+    plan_id: str,
+    user: str = typer.Option("local", "--user"),
+) -> None:
+  """Show a saved itinerary plan."""
+  try:
+    with get_session() as session:
+      plan = get_itinerary_plan(session, user_slug=user, plan_id=plan_id)
+  except SQLAlchemyError as exc:
+    exit_with_database_error(exc)
+
+  if plan is None:
+    typer.secho("Itinerary plan not found.", fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1)
+
+  typer.echo(json.dumps({
+    "plan_id": plan.plan_id,
+    "trip_request_id": plan.trip_request_id,
+    "original_prompt": plan.original_prompt,
+    "trip_request": plan.trip_request,
+    "active_context": plan.active_context,
+    "itinerary": plan.itinerary,
+    "model_name": plan.model_name,
+    "created_at": plan.created_at,
+  }, indent=2))
 
 def main() -> None:
   app()
