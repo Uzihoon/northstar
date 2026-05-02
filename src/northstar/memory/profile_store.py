@@ -20,13 +20,17 @@ def get_or_create_user(session: Session, user_slug: str = DEFAULT_USER_SLUG) -> 
   return user
 
 def get_or_create_profile_row(session: Session, user: User) -> UserPreferenceProfileModel:
-  if user.profile is not None:
-    return user.profile
-  
-  row = UserPreferenceProfileModel(user_id=user.id)
-  session.add(row)
+  profile = session.scalar(
+    select(UserPreferenceProfileModel).where(
+      UserPreferenceProfileModel.user_id == user.id
+    )
+  )
+  if profile is not None:
+    return profile
+  profile = UserPreferenceProfileModel(user_id=user.id)  
+  session.add(profile)
   session.flush()
-  return row
+  return profile
 
 def orm_to_profile(row: UserPreferenceProfileModel) -> UserPreferenceProfile:
   return UserPreferenceProfile(
