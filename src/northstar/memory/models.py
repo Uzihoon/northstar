@@ -52,3 +52,29 @@ class PreferenceUpdateModel(Base):
   created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
   user: Mapped[User] = relationship(back_populates="preference_updates")
+
+class TripRequestModel(Base):
+  __tablename__ = "trip_requests"
+
+  id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+  user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+  original_prompt: Mapped[str] = mapped_column(Text)
+  extracted_request: Mapped[dict[str, object]] = mapped_column(JSON)
+  active_context: Mapped[dict[str, object]] = mapped_column(JSON)
+  created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+  user: Mapped[User] = relationship()
+  plans: Mapped[list["ItineraryPlanModel"]] = relationship(
+    back_populates="trip_request", cascade="all, delete-orphan"
+  )
+
+class ItineraryPlanModel(Base):
+  __tablename__ = "itinerary_plans"
+
+  id: Mapped[str] = mapped_column(String(36), primary_key=True, default= lambda: str(uuid.uuid4()))
+  trip_request_id: Mapped[str] = mapped_column(ForeignKey("trip_requests.id"), index=True)
+  model_name: Mapped[str] = mapped_column(String(128))
+  itinerary: Mapped[dict[str, object]] = mapped_column(JSON)
+  created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+  trip_request: Mapped[TripRequestModel] = relationship(back_populates="plans")

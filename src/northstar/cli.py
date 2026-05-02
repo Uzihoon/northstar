@@ -11,7 +11,8 @@ from northstar.agent.profile_extract import PreferenceExtractionError, extract_p
 from northstar.memory.profile_store import apply_preference_update, load_profile
 from northstar.agent.context import build_active_plan_context
 from northstar.agent.itinerary import ItineraryGenerationError, generate_itinerary_plan
- 
+from northstar.agent.planner_service import generate_and_optionally_save_itinerary
+
 from sqlalchemy.exc import SQLAlchemyError
 
 app = typer.Typer(no_args_is_help=True)
@@ -169,36 +170,35 @@ def plan_json(
     user: str = typer.Option("local", "--user"),
     model: str | None = typer.Option(None, "--model", "-m"),
 ) -> None:
-  """Generate a structured itinerary plan."""
+  """Generate and save a structured itinerary plan."""
   settings = get_settings()
   resolved_model = model or settings.default_model
   client = get_ollama_client()
 
   try:
-    trip_request = extract_trip_request(
-      prompt=prompt,
-      model=resolved_model,
-      client=client,
-    )
     with get_session() as session:
-      profile = load_profile(session, user_slug=user)
-
-    context = build_active_plan_context(
-      profile=profile,
-      trip_request=trip_request,
-    )
-    plan = generate_itinerary_plan(
-      context=context,
-      model=resolved_model,
-      client=client,
-    )
+      result = generate_and_optionally_save_itinerary(
+        prompt=prompt,
+        user_slug=user,
+        model=resolved_model,
+        client=client,
+        session=session,
+        save=True,
+      )
   except (OllamaError, TripExtractionError, ItineraryGenerationError) as exc:
     typer.secho(str(exc), fg=typer.colors.RED, err=True)
     raise typer.Exit(code=1) from exc
   except SQLAlchemyError as exc:
     exit_with_database_error(exc)
 
-  typer.echo(json.dumps(plan.model_dump(mode="json"), indent=2))
+  typer.echo(json.dumps({
+    "plan_id": result.saved.plan_id if result.saved else None,
+    "trip_request_id": result.saved.trip_request_id if result.saved else None,
+    "trip_request": result.trip_request.model_dump(mode="json"),
+    "active_context": result.active_context.model_dump(mode="json"),
+    "itinerary": result.itinerary.model_dump(mode="json"),
+  }, indent=2))
+
 
 
 @app.command("extract-trip")
