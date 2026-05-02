@@ -12,7 +12,7 @@ class Settings(BaseSettings):
   app_name: str = "northstar"
   environment: str = "dev"
   ollama_base_url: str = "http://localhost:11434"
-  default_model: str = "qwen3.6:27b"
+  default_model: str = "gemma4:e4b"
   database_url: str = "postgresql+psycopg://northstar:northstar@localhost:5432/northstar"
 
 @lru_cache

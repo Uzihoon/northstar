@@ -10,7 +10,8 @@ from northstar.db import get_session
 from northstar.agent.profile_extract import PreferenceExtractionError, extract_preference_update
 from northstar.memory.profile_store import apply_preference_update, load_profile
 from northstar.agent.context import build_active_plan_context
-
+from northstar.agent.itinerary import ItineraryGenerationError, generate_itinerary_plan
+ 
 from sqlalchemy.exc import SQLAlchemyError
 
 app = typer.Typer(no_args_is_help=True)
@@ -120,29 +121,85 @@ def ask_stream(
 @app.command("plan")
 def plan(
   prompt: str,
+  user: str = typer.Option("local", "--user"),
   model: str | None = typer.Option(None, "--model", "-m"),
 ) -> None:
-  """Run the first tool-using travel planner loop."""
+  """Run the personalized travel planner loop."""
   settings = get_settings()
   resolved_model = model or settings.default_model
   client = get_ollama_client()
 
   try:
-    result = run_travel_agent(
+    trip_request = extract_trip_request(
       prompt=prompt,
       model=resolved_model,
-      client=client
+      client=client,
     )
-  except OllamaError as exc:
+    with get_session() as session:
+      profile = load_profile(session, user_slug=user)
+    context = build_active_plan_context(
+      profile=profile,
+      trip_request=trip_request,
+    )
+    result = run_travel_agent(
+      context=context,
+      model=resolved_model,
+      client=client,
+    )
+  except (OllamaError, TripExtractionError) as exc:
     typer.secho(str(exc), fg=typer.colors.RED, err=True)
     raise typer.Exit(code=1) from exc
-  
+  except SQLAlchemyError as exc:
+    exit_with_database_error(exc)
+
+  typer.echo("[active_context]")
+  typer.echo(json.dumps(context.model_dump(mode="json"), indent=2))
+  typer.echo("")
+
   for tool_call in result.tool_results:
     typer.echo(f"[tool] {tool_call.name} {json.dumps(tool_call.arguments)}")
     typer.echo(f"[tool_result] {json.dumps(tool_call.result)}")
 
   typer.echo("")
   typer.echo(result.answer)
+
+@app.command("plan-json")
+def plan_json(
+    prompt: str,
+    user: str = typer.Option("local", "--user"),
+    model: str | None = typer.Option(None, "--model", "-m"),
+) -> None:
+  """Generate a structured itinerary plan."""
+  settings = get_settings()
+  resolved_model = model or settings.default_model
+  client = get_ollama_client()
+
+  try:
+    trip_request = extract_trip_request(
+      prompt=prompt,
+      model=resolved_model,
+      client=client,
+    )
+    with get_session() as session:
+      profile = load_profile(session, user_slug=user)
+
+    context = build_active_plan_context(
+      profile=profile,
+      trip_request=trip_request,
+    )
+    plan = generate_itinerary_plan(
+      context=context,
+      model=resolved_model,
+      client=client,
+    )
+  except (OllamaError, TripExtractionError, ItineraryGenerationError) as exc:
+    typer.secho(str(exc), fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1) from exc
+  except SQLAlchemyError as exc:
+    exit_with_database_error(exc)
+
+  typer.echo(json.dumps(plan.model_dump(mode="json"), indent=2))
+
 
 @app.command("extract-trip")
 def extract_trip(

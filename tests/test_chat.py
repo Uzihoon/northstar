@@ -29,8 +29,8 @@ def test_chat_uses_default_model(monkeypatch) -> None:
 
   assert response.status_code == 200
   assert response.json() == {
-    "model": "qwen3.6:27b",
-    "message": "qwen3.6:27b: Plan 2 days in Kyoto",
+    "model": "gemma4:e4b",
+    "message": "gemma4:e4b: Plan 2 days in Kyoto",
   }
 
 def test_chat_returns_503_when_ollama_is_unavailable(monkeypatch) -> None:
