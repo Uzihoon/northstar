@@ -1,6 +1,8 @@
 import json
 
 import typer
+from pathlib import Path
+from sqlalchemy.exc import SQLAlchemyError
 
 from northstar.config import get_settings
 from northstar.ollama_client import OllamaError, get_ollama_client
@@ -16,7 +18,7 @@ from northstar.memory.plan_store import get_itinerary_plan, list_itinerary_plans
 from northstar.evals.runner import run_eval_suite
 from northstar.memory.eval_store import get_eval_run, list_eval_runs, save_eval_run
 
-from sqlalchemy.exc import SQLAlchemyError
+from northstar.rag.store import ingest_markdown_document, search_rag_chunks
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -466,6 +468,75 @@ def show_eval_run(run_id: str) -> None:
     "case_results": run.case_results,
   }, indent=2))
 
+@app.command("rag-ingest")
+def rag_ingest(
+    path: Path,
+    city: str = typer.Option(..., "--city"),
+    country: str = typer.Option(..., "--country"),
+) -> None:
+  """Ingest a curated Markdown document into RAG storage."""
+  settings = get_settings()
+  client = get_ollama_client()
+
+  try:
+    with get_session() as session:
+      count = ingest_markdown_document(
+      session=session,
+      path=path,
+      metadata={
+        "city": city,
+        "country": country,
+        "source_type": "curated_markdown",
+      },
+      client=client,
+      embedding_model=settings.embedding_model,
+      embedding_dimensions=settings.embedding_dimensions,
+    )
+
+  except (OllamaError, RuntimeError) as exc:
+    typer.secho(str(exc), fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1) from exc
+  except SQLAlchemyError as exc:
+    exit_with_database_error(exc)
+
+  typer.echo(f"Ingested {count} chunks.")
+
+
+@app.command("rag-search")
+def rag_search(
+    query: str,
+    limit: int = typer.Option(5, "--limit"),
+) -> None:
+  """Search curated RAG chunks."""
+  settings = get_settings()
+  client = get_ollama_client()
+
+  try:
+    with get_session() as session:
+      results = search_rag_chunks(
+        session=session,
+        query=query,
+        client=client,
+        embedding_model=settings.embedding_model,
+        embedding_dimensions=settings.embedding_dimensions,
+        limit=limit,
+      )
+  except (OllamaError, RuntimeError) as exc:
+    typer.secho(str(exc), fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1) from exc
+  except SQLAlchemyError as exc:
+    exit_with_database_error(exc)
+
+  typer.echo(json.dumps([
+    {
+      "chunk_id": result.chunk_id,
+      "source_path": result.source_path,
+      "metadata": result.metadata,
+      "score": result.score,
+      "text": result.text,
+    }
+    for result in results
+  ], indent=2))
 
 def main() -> None:
   app()

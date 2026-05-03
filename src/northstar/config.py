@@ -14,6 +14,8 @@ class Settings(BaseSettings):
   ollama_base_url: str = "http://localhost:11434"
   default_model: str = "gemma4:e4b"
   database_url: str = "postgresql+psycopg://northstar:northstar@localhost:5432/northstar"
+  embedding_model: str = "qwen3-embedding:0.6b"
+  embedding_dimensions: int = 1024
 
 @lru_cache
 def get_settings() -> Settings:

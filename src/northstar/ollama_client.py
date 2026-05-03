@@ -157,6 +157,27 @@ class OllamaClient:
       raise RuntimeError(
         f"Ollama returned invalid JSON for structured output. Raw content: {preview!r}"
       ) from exc
+    
+  def embed(self, *, text: str, model: str) -> list[float]:
+    payload = self._request(
+      "POST",
+      "/api/embed",
+      timeout=httpx.Timeout(connect=5.0, read=120.0, write=30.0, pool=5.0),
+      json={
+        "model": model,
+        "input": text,
+      },
+    )
+
+    embeddings = payload.get("embeddings")
+    if not isinstance(embeddings, list) or not embeddings:
+      raise RuntimeError("Ollama returned an unexpected embedding response.")
+    
+    embedding = embeddings[0]
+    if not isinstance(embedding, list):
+      raise RuntimeError("Ollama returned an invalid embedding vector.")
+    
+    return [float(value) for value in embedding]
 
   def _request(self, method: str, path: str, **kwargs) -> dict[str, Any]:
     timeout = kwargs.pop("timeout", self.timeout)
