@@ -13,6 +13,7 @@ from northstar.agent.context import build_active_plan_context
 from northstar.agent.itinerary import ItineraryGenerationError, generate_itinerary_plan
 from northstar.agent.planner_service import generate_and_optionally_save_itinerary
 from northstar.memory.plan_store import get_itinerary_plan, list_itinerary_plans
+from northstar.evals.runner import run_eval_suite
 
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -353,6 +354,56 @@ def show_plan(
     "model_name": plan.model_name,
     "created_at": plan.created_at,
   }, indent=2))
+
+@app.command("eval")
+def eval_suite(
+    suite: str,
+    model: str | None = typer.Option(None, "--model", "-m"),
+) -> None:
+  """Run an offline eval suite."""
+  settings = get_settings()
+  resolved_model = model or settings.default_model
+  client = get_ollama_client()
+
+  try:
+    result = run_eval_suite(
+      suite=suite,
+      model=resolved_model,
+      client=client,
+    )
+  except (OllamaError, TripExtractionError, PreferenceExtractionError, ItineraryGenerationError, ValueError) as exc:
+    typer.secho(str(exc), fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1) from exc
+
+  typer.echo(
+    json.dumps(
+      {
+        "suite": result.suite,
+        "passed": result.passed,
+        "failed": result.failed,
+        "total": result.total,
+        "pass_rate": result.pass_rate,
+        "results": [
+          {
+            "case_id": case_result.case_id,
+            "passed": case_result.passed,
+            "checks": [
+              {
+                "name": check.name,
+                "passed": check.passed,
+                "expected": check.expected,
+                "actual": check.actual,
+              }
+              for check in case_result.checks
+            ],
+          }
+          for case_result in result.results
+        ],
+      },
+      indent=2,
+    )
+  )
+
 
 def main() -> None:
   app()

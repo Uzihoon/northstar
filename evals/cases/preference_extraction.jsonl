@@ -1,0 +1,1 @@
+{"id":"slow_cafe_bookstore_profile","input":"My favorite trips are slow, walkable, cafe-heavy, and I always look for bookstores. I usually eat vegetarian.","expect":{"pace":"relaxed","interests_to_add_contains":["cafes","bookstores"],"food_preferences_to_add_contains":["vegetarian"]}}

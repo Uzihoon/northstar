@@ -1,0 +1,1 @@
+{"id":"kyoto_quiet_2_days","input":"Plan 2 quiet days in Kyoto next weekend. I like cafes, bookstores, and vegetarian food.","expect":{"destination_city":"Kyoto","country":"Japan","duration_days":2,"pace":"relaxed","interests_contains":["cafes","bookstores"],"food_preferences_contains":["vegetarian"],"missing_info_contains":["exact_travel_dates"]}}
