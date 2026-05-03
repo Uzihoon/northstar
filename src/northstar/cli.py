@@ -14,6 +14,7 @@ from northstar.agent.itinerary import ItineraryGenerationError, generate_itinera
 from northstar.agent.planner_service import generate_and_optionally_save_itinerary
 from northstar.memory.plan_store import get_itinerary_plan, list_itinerary_plans
 from northstar.evals.runner import run_eval_suite
+from northstar.memory.eval_store import get_eval_run, list_eval_runs, save_eval_run
 
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -359,6 +360,7 @@ def show_plan(
 def eval_suite(
     suite: str,
     model: str | None = typer.Option(None, "--model", "-m"),
+    save: bool = typer.Option(True, "--save/--no-save"),
 ) -> None:
   """Run an offline eval suite."""
   settings = get_settings()
@@ -371,6 +373,18 @@ def eval_suite(
       model=resolved_model,
       client=client,
     )
+    saved_run_id = None
+    if save:
+      try:
+        with get_session() as session:
+          saved = save_eval_run(
+            session,
+            result=result,
+            model_name=resolved_model,
+          )
+          saved_run_id = saved.run_id
+      except SQLAlchemyError as exc:
+        exit_with_database_error(exc)
   except (OllamaError, TripExtractionError, PreferenceExtractionError, ItineraryGenerationError, ValueError) as exc:
     typer.secho(str(exc), fg=typer.colors.RED, err=True)
     raise typer.Exit(code=1) from exc
@@ -379,6 +393,7 @@ def eval_suite(
     json.dumps(
       {
         "suite": result.suite,
+        "run_id": saved_run_id,
         "passed": result.passed,
         "failed": result.failed,
         "total": result.total,
@@ -403,6 +418,53 @@ def eval_suite(
       indent=2,
     )
   )
+
+@app.command("list-eval-runs")
+def list_eval_runs_command() -> None:
+  try:
+    with get_session() as session:
+      runs = list_eval_runs(session)
+  except SQLAlchemyError as exc:
+    exit_with_database_error(exc)
+
+  typer.echo(json.dumps([
+    {
+      "run_id": run.run_id,
+      "suite": run.suite,
+      "model_name": run.model_name,
+      "passed": run.passed,
+      "failed": run.failed,
+      "total": run.total,
+      "pass_rate": run.pass_rate,
+      "created_at": run.created_at,
+    }
+    for run in runs
+  ], indent=2))
+
+
+@app.command("show-eval-run")
+def show_eval_run(run_id: str) -> None:
+  try:
+    with get_session() as session:
+      run = get_eval_run(session, run_id=run_id)
+  except SQLAlchemyError as exc:
+    exit_with_database_error(exc)
+
+  if run is None:
+    typer.secho("Eval run not found.", fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1)
+
+  typer.echo(json.dumps({
+    "run_id": run.run_id,
+    "suite": run.suite,
+    "model_name": run.model_name,
+    "passed": run.passed,
+    "failed": run.failed,
+    "total": run.total,
+    "pass_rate": run.pass_rate,
+    "created_at": run.created_at,
+    "case_results": run.case_results,
+  }, indent=2))
 
 
 def main() -> None:

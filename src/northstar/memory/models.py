@@ -78,3 +78,30 @@ class ItineraryPlanModel(Base):
   created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
   trip_request: Mapped[TripRequestModel] = relationship(back_populates="plans")
+
+class EvalRunModel(Base):
+  __tablename__ = "eval_runs"
+
+  id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+  suite: Mapped[str] = mapped_column(String(64), index=True)
+  model_name: Mapped[str] = mapped_column(String(128))
+  passed: Mapped[int] = mapped_column()
+  failed: Mapped[int] = mapped_column()
+  total: Mapped[int] = mapped_column()
+  pass_rate: Mapped[float] = mapped_column()
+  created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+  case_results: Mapped[list["EvalCaseResultModel"]] = relationship(
+    back_populates="eval_run", cascade="all, delete-orphan"
+  )
+
+class EvalCaseResultModel(Base):
+  __tablename__ = "eval_case_results"
+
+  id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+  eval_run_id: Mapped[str] = mapped_column(ForeignKey("eval_runs.id"), index=True)
+  case_id: Mapped[str] = mapped_column(String(128))
+  passed: Mapped[bool] = mapped_column()
+  checks: Mapped[list[dict[str, object]]] = mapped_column(JSON)
+
+  eval_run: Mapped[EvalRunModel] = relationship(back_populates="case_results")
