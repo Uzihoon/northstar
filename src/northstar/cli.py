@@ -481,17 +481,17 @@ def rag_ingest(
   try:
     with get_session() as session:
       count = ingest_markdown_document(
-      session=session,
-      path=path,
-      metadata={
-        "city": city,
-        "country": country,
-        "source_type": "curated_markdown",
-      },
-      client=client,
-      embedding_model=settings.embedding_model,
-      embedding_dimensions=settings.embedding_dimensions,
-    )
+        session=session,
+        path=path,
+        metadata={
+          "city": city,
+          "country": country,
+          "source_type": "curated_markdown",
+        },
+        client=client,
+        embedding_model=settings.embedding_model,
+        embedding_dimensions=settings.embedding_dimensions,
+      )
 
   except (OllamaError, RuntimeError) as exc:
     typer.secho(str(exc), fg=typer.colors.RED, err=True)
