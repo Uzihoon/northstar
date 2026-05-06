@@ -8,6 +8,7 @@ from northstar.agent.context import ActivePlanContext
 from northstar.agent.itinerary import ItineraryPlan
 from northstar.agent.schemas import TripRequest
 from northstar.db import Base
+from northstar.rag.schemas import RagContext, RagSource
 from northstar.memory.plan_store import (
   get_itinerary_plan,
   list_itinerary_plans,
@@ -25,7 +26,11 @@ def session() -> Iterator[Session]:
     yield db_session
 
 
-def save_sample_plan(session: Session, user_slug: str = "local"):
+def save_sample_plan(
+    session: Session,
+    user_slug: str = "local",
+    rag_context: RagContext | None = None,
+):
   return save_itinerary_plan(
     session,
     user_slug=user_slug,
@@ -50,6 +55,7 @@ def save_sample_plan(session: Session, user_slug: str = "local"):
       days=[],
     ),
     model_name="qwen3.6:27b",
+    rag_context=rag_context,
   )
 
 
@@ -90,3 +96,31 @@ def test_get_itinerary_plan_returns_none_for_other_user(session: Session) -> Non
   )
 
   assert plan is None
+
+def test_get_itinerary_plan_returns_saved_rag_context(session: Session) -> None:
+  saved = save_sample_plan(
+    session,
+    rag_context=RagContext(
+      query="Kyoto Japan interests: cafes",
+      notes=["Kyoto has quiet cafe breaks near the Philosopher's Path."],
+      sources=[
+        RagSource(
+          chunk_id="chunk-1",
+          source_path="rag_docs/japan/kyoto/cafes.md",
+          score=0.88,
+          metadata={"country": "japan", "city": "kyoto"},
+        )
+      ],
+    ),
+  )
+
+  plan = get_itinerary_plan(
+    session,
+    user_slug="local",
+    plan_id=saved.plan_id,
+  )
+
+  assert plan is not None
+  assert plan.rag_context is not None
+  assert plan.rag_context["query"] == "Kyoto Japan interests: cafes"
+  assert plan.rag_context["sources"][0]["source_path"] == "rag_docs/japan/kyoto/cafes.md"

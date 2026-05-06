@@ -85,6 +85,7 @@ def create_itinerary_plan(request: ItineraryPlanRequest) -> dict:
     "trip_request_id": result.saved.trip_request_id if result.saved else None,
     "trip_request": result.trip_request.model_dump(mode="json"),
     "active_context": result.active_context.model_dump(mode="json"),
+    "rag_context": result.rag_context.model_dump(mode="json") if result.rag_context else None,
     "itinerary": result.itinerary.model_dump(mode="json")
   }
 
@@ -129,5 +130,6 @@ def get_saved_itinerary_plan(plan_id: str, user: str = "local") -> dict:
     "active_context": plan.active_context,
     "itinerary": plan.itinerary,
     "model_name": plan.model_name,
+    "rag_context": plan.rag_context,
     "created_at": plan.created_at
   }

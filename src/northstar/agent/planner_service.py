@@ -64,6 +64,7 @@ def generate_and_optionally_save_itinerary(
       trip_request=trip_request,
       active_context=active_context,
       itinerary=itinerary,
+      rag_context=rag_context,
       model_name=model
     )
 

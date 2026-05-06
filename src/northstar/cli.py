@@ -367,6 +367,7 @@ def show_plan(
     "trip_request": plan.trip_request,
     "active_context": plan.active_context,
     "itinerary": plan.itinerary,
+    "rag_context": plan.rag_context,
     "model_name": plan.model_name,
     "created_at": plan.created_at,
   }, indent=2))

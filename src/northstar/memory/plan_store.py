@@ -9,6 +9,7 @@ from northstar.agent.itinerary import ItineraryPlan
 from northstar.agent.schemas import TripRequest
 from northstar.memory.models import ItineraryPlanModel, TripRequestModel
 from northstar.memory.profile_store import get_or_create_user
+from northstar.rag.schemas import RagContext
 
 @dataclass(frozen=True)
 class SavedItineraryPlan:
@@ -32,6 +33,7 @@ class StoredItineraryPlan:
   trip_request: dict[str, object]
   active_context: dict[str, object]
   itinerary: dict[str, object]
+  rag_context: dict[str, object] | None
   model_name: str
   created_at: str
 
@@ -43,7 +45,8 @@ def save_itinerary_plan(
     trip_request: TripRequest,
     active_context: ActivePlanContext,
     itinerary: ItineraryPlan,
-    model_name: str
+    model_name: str,
+    rag_context: RagContext | None = None,
 ) -> SavedItineraryPlan:
   user = get_or_create_user(session, user_slug=user_slug)
 
@@ -60,6 +63,7 @@ def save_itinerary_plan(
     trip_request_id=trip_row.id,
     model_name=model_name,
     itinerary=itinerary.model_dump(mode="json"),
+    rag_context=rag_context.model_dump(mode="json") if rag_context else None,
   )
   session.add(plan_row)
   session.commit()
@@ -127,6 +131,7 @@ def get_itinerary_plan(
     trip_request=trip_row.extracted_request,
     active_context=trip_row.active_context,
     itinerary=plan_row.itinerary,
+    rag_context=plan_row.rag_context,
     model_name=plan_row.model_name,
     created_at=plan_row.created_at.isoformat(),
   )

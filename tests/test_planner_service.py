@@ -8,6 +8,7 @@ from northstar.agent.planner_service import generate_and_optionally_save_itinera
 from northstar.db import Base
 from northstar.memory.models import ItineraryPlanModel, TripRequestModel
 from northstar.memory.profile_store import get_or_create_profile_row, get_or_create_user
+from northstar.rag.schemas import RagContext, RagSource
 
 
 @pytest.fixture()
@@ -120,3 +121,35 @@ def test_generate_and_optionally_save_itinerary_can_skip_saving(session: Session
   assert trip_rows == []
   assert plan_rows == []
   assert result.itinerary.destination == "Kyoto, Japan"
+
+def test_generate_and_optionally_save_itinerary_persists_rag_context(session: Session) -> None:
+  rag_context = RagContext(
+    query="Kyoto Japan interests: cafes",
+    notes=["Kyoto has quiet cafe breaks near the Philosopher's Path."],
+    sources=[
+      RagSource(
+        chunk_id="chunk-1",
+        source_path="rag_docs/japan/kyoto/cafes.md",
+        score=0.88,
+        metadata={"country": "japan", "city": "kyoto"},
+      )
+    ],
+  )
+
+  def fake_rag_retriever(session, active_context):
+    return rag_context
+
+  result = generate_and_optionally_save_itinerary(
+    prompt="Plan 2 quiet days in Kyoto.",
+    user_slug="local",
+    model="qwen3.6:27b",
+    client=FakeOllamaClient(),
+    session=session,
+    save=True,
+    rag_retriever=fake_rag_retriever,
+  )
+
+  plan_rows = session.scalars(select(ItineraryPlanModel)).all()
+
+  assert result.rag_context == rag_context
+  assert plan_rows[0].rag_context == rag_context.model_dump(mode="json")

@@ -1,10 +1,14 @@
+from collections.abc import Callable
+
 from sqlalchemy.orm import Session
 
 from northstar.agent.context import ActivePlanContext
 from northstar.ollama_client import OllamaClient
 from northstar.rag.schemas import RagContext, RagSource
-from northstar.rag.store import search_rag_chunks
+from northstar.rag.store import RagSearchResult, search_rag_chunks
 from northstar.rag.metadata import normalize_slug
+
+SearchRagChunksFn = Callable[..., list[RagSearchResult]]
 
 def build_rag_query(context: ActivePlanContext) -> str:
   parts: list[str] = []
@@ -37,12 +41,13 @@ def retrieve_travel_context(
     embedding_model: str,
     embedding_dimensions: int,
     limit: int = 3,
+    search_fn: SearchRagChunksFn = search_rag_chunks,
 ) -> RagContext:
   query = build_rag_query(context)
   country = normalize_slug(context.country)
   city = normalize_slug(context.destination_city)
 
-  results = search_rag_chunks(
+  results = search_fn(
     session=session,
     query=query,
     client=client,
@@ -54,7 +59,7 @@ def retrieve_travel_context(
   )
 
   if not results and (country or city):
-    results = search_rag_chunks(
+    results = search_fn(
       session=session,
       query=query,
       client=client,
