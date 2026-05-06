@@ -81,6 +81,8 @@ def search_rag_chunks(
     embedding_model: str,
     embedding_dimensions: int,
     limit: int = 5,
+    country: str | None = None,
+    city: str | None = None,
 ) -> list[RagSearchResult]:
   query_embedding = client.embed(text=query, model=embedding_model)
   validate_embedding_dimensions(
@@ -90,11 +92,16 @@ def search_rag_chunks(
   )
 
   distance = RagChunkModel.embedding.cosine_distance(query_embedding)
+  statement = select(RagChunkModel, distance.label("distance"))
+
+  if country:
+    statement = statement.where(RagChunkModel.chunk_metadata["country"].as_string() == country)
+
+  if city:
+    statement = statement.where(RagChunkModel.chunk_metadata["city"].as_string() == city)
 
   rows = session.execute(
-    select(RagChunkModel, distance.label("distance"))
-    .order_by(distance)
-    .limit(limit)
+    statement.order_by(distance).limit(limit)
   ).all()
 
   return [

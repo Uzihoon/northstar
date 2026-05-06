@@ -19,6 +19,7 @@ from northstar.evals.runner import run_eval_suite
 from northstar.memory.eval_store import get_eval_run, list_eval_runs, save_eval_run
 from northstar.rag.retriever import retrieve_travel_context
 from northstar.rag.store import ingest_markdown_document, search_rag_chunks
+from northstar.rag.metadata import build_rag_metadata
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -483,8 +484,9 @@ def show_eval_run(run_id: str) -> None:
 @app.command("rag-ingest")
 def rag_ingest(
     path: Path,
-    city: str = typer.Option(..., "--city"),
-    country: str = typer.Option(..., "--country"),
+    city: str | None = typer.Option(None, "--city"),
+    country: str | None = typer.Option(None, "--country"),
+    doc_type: str | None = typer.Option(None, "--doc-type"),
 ) -> None:
   """Ingest a curated Markdown document into RAG storage."""
   settings = get_settings()
@@ -495,11 +497,12 @@ def rag_ingest(
       count = ingest_markdown_document(
         session=session,
         path=path,
-        metadata={
-          "city": city,
-          "country": country,
-          "source_type": "curated_markdown",
-        },
+        metadata=build_rag_metadata(
+          path=path,
+          city=city,
+          country=country,
+          doc_type=doc_type,
+        ),
         client=client,
         embedding_model=settings.embedding_model,
         embedding_dimensions=settings.embedding_dimensions,

@@ -4,6 +4,7 @@ from northstar.agent.context import ActivePlanContext
 from northstar.ollama_client import OllamaClient
 from northstar.rag.schemas import RagContext, RagSource
 from northstar.rag.store import search_rag_chunks
+from northstar.rag.metadata import normalize_slug
 
 def build_rag_query(context: ActivePlanContext) -> str:
   parts: list[str] = []
@@ -22,7 +23,7 @@ def build_rag_query(context: ActivePlanContext) -> str:
 
   if context.food_preferences:
     parts.append("food preferences: " + ", ".join(context.food_preferences))
-  
+
   if context.constraints:
     parts.append("constraints: " + ", ".join(context.constraints))
 
@@ -38,6 +39,8 @@ def retrieve_travel_context(
     limit: int = 3,
 ) -> RagContext:
   query = build_rag_query(context)
+  country = normalize_slug(context.country)
+  city = normalize_slug(context.destination_city)
 
   results = search_rag_chunks(
     session=session,
@@ -45,8 +48,20 @@ def retrieve_travel_context(
     client=client,
     embedding_model=embedding_model,
     embedding_dimensions=embedding_dimensions,
-    limit=limit
+    limit=limit,
+    country=country,
+    city=city,
   )
+
+  if not results and (country or city):
+    results = search_rag_chunks(
+      session=session,
+      query=query,
+      client=client,
+      embedding_model=embedding_model,
+      embedding_dimensions=embedding_dimensions,
+      limit=limit,
+    )
 
   return RagContext(
     query=query,
