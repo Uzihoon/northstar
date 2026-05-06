@@ -93,16 +93,16 @@ def create_itinerary_plan(request: ItineraryPlanRequest) -> dict:
 def list_saved_itinerary_plans(user: str = "local") -> dict:
   try:
     with get_session() as session:
-      plans = list_itinerary_plans(session, user_lsug=user)
+      plans = list_itinerary_plans(session, user_slug=user)
   except SQLAlchemyError as exc:
     raise HTTPException(status_code=503, detail="Database is unavailable.") from exc
-  
+
   return {
     "plans": [
       {
         "plan_id": plan.plan_id,
         "trip_request_id": plan.trip_request_id,
-        "original_promp": plan.original_prompt,
+        "original_prompt": plan.original_prompt,
         "title": plan.title,
         "destination": plan.destination,
         "created_at": plan.created_at,
