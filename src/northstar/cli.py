@@ -17,7 +17,7 @@ from northstar.agent.planner_service import generate_and_optionally_save_itinera
 from northstar.memory.plan_store import get_itinerary_plan, list_itinerary_plans
 from northstar.evals.runner import run_eval_suite
 from northstar.memory.eval_store import get_eval_run, list_eval_runs, save_eval_run
-
+from northstar.rag.retriever import retrieve_travel_context
 from northstar.rag.store import ingest_markdown_document, search_rag_chunks
 
 app = typer.Typer(no_args_is_help=True)
@@ -182,6 +182,16 @@ def plan_json(
 
   try:
     with get_session() as session:
+      def rag_retriever(session, active_context):
+        return retrieve_travel_context(
+          session=session,
+          context=active_context,
+          client=client,
+          embedding_model=settings.embedding_model,
+          embedding_dimensions=settings.embedding_dimensions,
+          limit=3,
+        )
+
       result = generate_and_optionally_save_itinerary(
         prompt=prompt,
         user_slug=user,
@@ -189,6 +199,7 @@ def plan_json(
         client=client,
         session=session,
         save=True,
+        rag_retriever=rag_retriever,
       )
   except (OllamaError, TripExtractionError, ItineraryGenerationError) as exc:
     typer.secho(str(exc), fg=typer.colors.RED, err=True)
@@ -202,6 +213,7 @@ def plan_json(
     "trip_request": result.trip_request.model_dump(mode="json"),
     "active_context": result.active_context.model_dump(mode="json"),
     "itinerary": result.itinerary.model_dump(mode="json"),
+    "rag_context": result.rag_context.model_dump(mode="json") if result.rag_context else None,
   }, indent=2))
 
 

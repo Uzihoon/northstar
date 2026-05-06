@@ -1,9 +1,11 @@
+import json
 from enum import Enum
 
 from pydantic import BaseModel, Field, ValidationError
 
 from northstar.agent.context import ActivePlanContext
 from northstar.ollama_client import OllamaClient
+from northstar.rag.schemas import RagContext
 
 class ItineraryGenerationError(RuntimeError):
   """Raised when itinerary generation fails."""
@@ -65,6 +67,9 @@ ITINERARY_SYSTEM_PROMPT = """
 You create structured travel itineraries.
 
 Rules:
+- If curated local notes are provided, use them when relevant.
+- Do not invent that a curated source said something unless it appears in the notes.
+- When a timeline item uses curated local notes, mention that briefly in source_notes.
 - Return only JSON matching the schema.
 - Build a realistic day-by-day timeline.
 - Every timeline item must include start_time and end_time in HH:MM 24-hour format.
@@ -81,13 +86,19 @@ def generate_itinerary_plan(
     *,
     context: ActivePlanContext,
     model: str,
-    client: OllamaClient
+    client: OllamaClient,
+    rag_context: RagContext | None = None,
 ) -> ItineraryPlan:
+  user_payload = {
+    "active_context": context.model_dump(mode="json"),
+    "rag_context": rag_context.model_dump(mode="json") if rag_context else None
+  }
+
   try:
     payload = client.structured_chat(
       messages=[
         {"role": "system", "content": ITINERARY_SYSTEM_PROMPT},
-        {"role": "user", "content": context.model_dump_json(indent=2)}
+        {"role": "user", "content": json.dumps(user_payload, indent=2)}
       ],
       model=model,
       response_format=ItineraryPlan.model_json_schema(),

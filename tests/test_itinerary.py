@@ -1,6 +1,22 @@
 from northstar.agent.context import ActivePlanContext
 from northstar.agent.itinerary import ItineraryPlan, generate_itinerary_plan
+from northstar.rag.schemas import RagContext, RagSource
 
+class CapturingFakeOllamaClient:
+  def __init__(self) -> None:
+    self.messages = []
+
+  def structured_chat(self, *, messages, model, response_format):
+    self.messages = messages
+
+    return {
+      "title": "A RAG-grounded Kyoto plan",
+      "destination": "Kyoto, Japan",
+      "duration_days": 2,
+      "preferences_used": ["cafes"],
+      "assumptions": [],
+      "days": [],
+    }
 
 class FakeOllamaClient:
   def structured_chat(self, *, messages, model, response_format):
@@ -82,3 +98,35 @@ def test_generate_itinerary_plan_returns_validated_plan() -> None:
   assert plan.days[0].timeline_items[1].duration_minutes == 25
   assert plan.days[0].timeline_items[2].type == "break_time"
 
+def test_generate_itinerary_plan_includes_rag_context_in_prompt() -> None:
+  client = CapturingFakeOllamaClient()
+  context = ActivePlanContext(
+    destination_city="Kyoto",
+    country="Japan",
+    duration_days=2,
+    interests=["cafes"],
+  )
+  rag_context = RagContext(
+    query="Kyoto Japan interests: cafes",
+    notes=["Philosopher's Path is useful for quiet cafe breaks."],
+    sources=[
+      RagSource(
+        chunk_id="chunk-1",
+        source_path="rag_docs/japan/kyoto/cafes.md",
+        score=0.91,
+        metadata={"city": "Kyoto", "country": "Japan"},
+      )
+    ],
+  )
+
+  generate_itinerary_plan(
+    context=context,
+    model="qwen3.6:27b",
+    client=client,
+    rag_context=rag_context,
+  )
+
+  user_message = client.messages[1]["content"]
+
+  assert "Philosopher's Path is useful for quiet cafe breaks." in user_message
+  assert "rag_docs/japan/kyoto/cafes.md" in user_message
