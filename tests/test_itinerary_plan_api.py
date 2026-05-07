@@ -5,9 +5,22 @@ from northstar.agent.context import ActivePlanContext
 from northstar.agent.itinerary import ItineraryPlan
 from northstar.agent.planner_service import GeneratedItineraryResult
 from northstar.agent.schemas import TripRequest
-from northstar.memory.plan_store import SavedItineraryPlan
+from northstar.memory.plan_store import (
+  ItineraryPlanSummary,
+  SavedItineraryPlan,
+  StoredItineraryPlan,
+)
+from northstar.rag.schemas import RagContext, RagSource
 
 client = TestClient(app_module.app)
+
+
+class FakeSession:
+  def __enter__(self):
+    return self
+
+  def __exit__(self, exc_type, exc, tb):
+    return False
 
 
 def test_create_itinerary_plan_returns_saved_plan(monkeypatch) -> None:
@@ -19,7 +32,23 @@ def test_create_itinerary_plan_returns_saved_plan(monkeypatch) -> None:
       client,
       session,
       save=True,
+      rag_retriever=None,
   ):
+    assert callable(rag_retriever)
+
+    rag_context = RagContext(
+      query="Kyoto Japan interests: cafes",
+      notes=["Kyoto has quiet cafe breaks near the Philosopher's Path."],
+      sources=[
+        RagSource(
+          chunk_id="chunk-1",
+          source_path="rag_docs/japan/kyoto/cafes.md",
+          score=0.88,
+          metadata={"country": "japan", "city": "kyoto"},
+        )
+      ],
+    )
+
     return GeneratedItineraryResult(
       trip_request=TripRequest(
         destination_city="Kyoto",
@@ -44,14 +73,8 @@ def test_create_itinerary_plan_returns_saved_plan(monkeypatch) -> None:
         trip_request_id="trip-123",
         plan_id="plan-123",
       ),
+      rag_context=rag_context,
     )
-
-  class FakeSession:
-    def __enter__(self):
-      return self
-
-    def __exit__(self, exc_type, exc, tb):
-      return False
 
   monkeypatch.setattr(
     app_module,
@@ -77,3 +100,104 @@ def test_create_itinerary_plan_returns_saved_plan(monkeypatch) -> None:
   assert data["trip_request"]["destination_city"] == "Kyoto"
   assert data["active_context"]["interests"] == ["cafes"]
   assert data["itinerary"]["destination"] == "Kyoto, Japan"
+  assert data["rag_context"]["sources"][0]["source_path"] == "rag_docs/japan/kyoto/cafes.md"
+
+
+def test_list_itinerary_plans_returns_saved_plan_summaries(monkeypatch) -> None:
+  def fake_list_itinerary_plans(session, *, user_slug):
+    assert user_slug == "local"
+
+    return [
+      ItineraryPlanSummary(
+        plan_id="plan-123",
+        trip_request_id="trip-123",
+        original_prompt="Plan 2 quiet days in Kyoto.",
+        title="A relaxed Kyoto plan",
+        destination="Kyoto, Japan",
+        created_at="2026-05-05T10:00:00",
+      )
+    ]
+
+  monkeypatch.setattr(app_module, "get_session", lambda: FakeSession())
+  monkeypatch.setattr(app_module, "list_itinerary_plans", fake_list_itinerary_plans)
+
+  response = client.get("/itinerary-plans?user=local")
+
+  assert response.status_code == 200
+
+  data = response.json()
+  assert data["plans"][0]["plan_id"] == "plan-123"
+  assert data["plans"][0]["trip_request_id"] == "trip-123"
+  assert data["plans"][0]["original_prompt"] == "Plan 2 quiet days in Kyoto."
+  assert "original_promp" not in data["plans"][0]
+
+
+def test_get_itinerary_plan_returns_saved_plan_with_rag_context(monkeypatch) -> None:
+  def fake_get_itinerary_plan(session, *, user_slug, plan_id):
+    assert user_slug == "local"
+    assert plan_id == "plan-123"
+
+    return StoredItineraryPlan(
+      plan_id="plan-123",
+      trip_request_id="trip-123",
+      original_prompt="Plan 2 quiet days in Kyoto.",
+      trip_request={
+        "destination_city": "Kyoto",
+        "country": "Japan",
+        "duration_days": 2,
+      },
+      active_context={
+        "destination_city": "Kyoto",
+        "country": "Japan",
+        "duration_days": 2,
+        "interests": ["cafes"],
+      },
+      itinerary={
+        "title": "A relaxed Kyoto plan",
+        "destination": "Kyoto, Japan",
+        "duration_days": 2,
+        "preferences_used": ["cafes"],
+        "assumptions": [],
+        "days": [],
+      },
+      rag_context={
+        "query": "Kyoto Japan interests: cafes",
+        "notes": ["Kyoto has quiet cafe breaks near the Philosopher's Path."],
+        "sources": [
+          {
+            "chunk_id": "chunk-1",
+            "source_path": "rag_docs/japan/kyoto/cafes.md",
+            "score": 0.88,
+            "metadata": {"country": "japan", "city": "kyoto"},
+          }
+        ],
+      },
+      model_name="qwen3.6:27b",
+      created_at="2026-05-05T10:00:00",
+    )
+
+  monkeypatch.setattr(app_module, "get_session", lambda: FakeSession())
+  monkeypatch.setattr(app_module, "get_itinerary_plan", fake_get_itinerary_plan)
+
+  response = client.get("/itinerary-plans/plan-123?user=local")
+
+  assert response.status_code == 200
+
+  data = response.json()
+  assert data["plan_id"] == "plan-123"
+  assert data["original_prompt"] == "Plan 2 quiet days in Kyoto."
+  assert "original_promp" not in data
+  assert data["rag_context"]["sources"][0]["source_path"] == "rag_docs/japan/kyoto/cafes.md"
+
+
+def test_get_itinerary_plan_returns_404_when_missing(monkeypatch) -> None:
+  def fake_get_itinerary_plan(session, *, user_slug, plan_id):
+    return None
+
+  monkeypatch.setattr(app_module, "get_session", lambda: FakeSession())
+  monkeypatch.setattr(app_module, "get_itinerary_plan", fake_get_itinerary_plan)
+
+  response = client.get("/itinerary-plans/missing-plan?user=local")
+
+  assert response.status_code == 404
+  assert response.json()["detail"] == "Itinerary plan not found."

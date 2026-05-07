@@ -9,6 +9,7 @@ from northstar.db import get_session
 from northstar.config import get_settings
 from northstar.ollama_client import OllamaError, get_ollama_client
 from northstar.memory.plan_store import get_itinerary_plan, list_itinerary_plans
+from northstar.rag.retriever import retrieve_travel_context
 
 app = FastAPI(title="Northstar API")
 
@@ -67,13 +68,24 @@ def create_itinerary_plan(request: ItineraryPlanRequest) -> dict:
 
   try:
     with get_session() as session:
+      def rag_retriever(session, active_context):
+        return retrieve_travel_context(
+          session=session,
+          context=active_context,
+          client=client,
+          embedding_model=settings.embedding_model,
+          embedding_dimensions=settings.embedding_dimensions,
+          limit=3,
+        )
+
       result = generate_and_optionally_save_itinerary(
         prompt=request.prompt,
         user_slug=request.user,
         model=resolved_model,
         client=client,
         session=session,
-        save=request.save
+        save=request.save,
+        rag_retriever=rag_retriever,
       )
   except (OllamaError, TripExtractionError, ItineraryGenerationError) as exc:
     raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -125,7 +137,7 @@ def get_saved_itinerary_plan(plan_id: str, user: str = "local") -> dict:
   return {
     "plan_id": plan.plan_id,
     "trip_request_id": plan.trip_request_id,
-    "original_promp": plan.original_prompt,
+    "original_prompt": plan.original_prompt,
     "trip_request": plan.trip_request,
     "active_context": plan.active_context,
     "itinerary": plan.itinerary,
