@@ -69,6 +69,8 @@ class FakeOllamaClient:
                 "description": "A calm morning walk.",
                 "preference_match": ["relaxed"],
                 "source_notes": [],
+                "place_category": "walking route",
+                "indoor_outdoor": "outdoor",
               }
             ],
           }

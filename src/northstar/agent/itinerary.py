@@ -50,26 +50,75 @@ class TimelineItem(BaseModel):
   estimated_cost: str | None = None
 
   @model_validator(mode="after")
-  def validate_transport_metadata(self) -> "TimelineItem":
-    if self.type != TimelineItemType.transport:
-      return self
+  def validate_type_specific_metadata(self) -> "TimelineItem":
+    if self.type == TimelineItemType.transport:
+      missing_fields: list[str] = []
+      if not self.transport_mode:
+        missing_fields.append("transport_mode")
+      if not self.from_location:
+        missing_fields.append("from_location")
+      if not self.to_location:
+        missing_fields.append("to_location")
+      if self.duration_minutes is None:
+        missing_fields.append("duration_minutes")
 
-    missing_fields: list[str] = []
-    if not self.transport_mode:
-      missing_fields.append("transport_mode")
-    if not self.from_location:
-      missing_fields.append("from_location")
-    if not self.to_location:
-      missing_fields.append("to_location")
-    if self.duration_minutes is None:
-      missing_fields.append("duration_minutes")
+      if missing_fields:
+        raise ValueError(
+          "Transport timeline items must include "
+          + ", ".join(missing_fields)
+          + "."
+        )
 
-    if missing_fields:
-      raise ValueError(
-        "Transport timeline items must include "
-        + ", ".join(missing_fields)
-        + "."
-      )
+    if self.type == TimelineItemType.meal:
+      missing_fields = []
+      if not self.cuisine:
+        missing_fields.append("cuisine")
+      if not self.dietary_fit:
+        missing_fields.append("dietary_fit")
+      if self.reservation_recommended is None:
+        missing_fields.append("reservation_recommended")
+
+      if missing_fields:
+        raise ValueError(
+          "Meal timeline items must include "
+          + ", ".join(missing_fields)
+          + "."
+        )
+
+    if self.type == TimelineItemType.cafe:
+      missing_fields = []
+      if self.reservation_recommended is None:
+        missing_fields.append("reservation_recommended")
+
+      if missing_fields:
+        raise ValueError(
+          "Cafe timeline items must include "
+          + ", ".join(missing_fields)
+          + "."
+        )
+
+    if self.type == TimelineItemType.place:
+      title = self.title.lower()
+      place_category = (self.place_category or "").lower()
+      food_words = ["breakfast", "brunch", "lunch", "dinner", "restaurant"]
+
+      if any(word in title or word in place_category for word in food_words):
+        raise ValueError(
+          "Food or restaurant timeline items must use type=meal or type=cafe, not type=place."
+        )
+
+      missing_fields = []
+      if not self.place_category:
+        missing_fields.append("place_category")
+      if not self.indoor_outdoor:
+        missing_fields.append("indoor_outdoor")
+
+      if missing_fields:
+        raise ValueError(
+          "Place timeline items must include "
+          + ", ".join(missing_fields)
+          + "."
+        )
 
     return self
 
@@ -123,6 +172,10 @@ Rules:
 - Fix only schema or validation problems.
 - Do not add new facts unless required to satisfy validation.
 - For transport items, include transport_mode, from_location, to_location, and duration_minutes.
+- For meal items, include cuisine, dietary_fit, and reservation_recommended.
+- For cafe items, include reservation_recommended.
+- Food or restaurant timeline items must use type=meal or type=cafe, not type=place.
+- For place items, include place_category and indoor_outdoor.
 """.strip()
 
 def _build_itinerary_user_payload(

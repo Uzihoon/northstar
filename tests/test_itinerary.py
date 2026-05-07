@@ -142,6 +142,66 @@ class RepairingFakeOllamaClient:
       ],
     }
 
+class TypeRepairingFakeOllamaClient:
+  def __init__(self) -> None:
+    self.calls = 0
+
+  def structured_chat(self, *, messages, model, response_format):
+    self.calls += 1
+
+    if self.calls == 1:
+      return {
+        "title": "A plan with dinner typed as place",
+        "destination": "Kyoto, Japan",
+        "duration_days": 2,
+        "preferences_used": ["vegetarian"],
+        "assumptions": [],
+        "days": [
+          {
+            "day_number": 1,
+            "theme": "Quiet Kyoto",
+            "timeline_items": [
+              {
+                "type": "place",
+                "start_time": "18:00",
+                "end_time": "19:30",
+                "title": "Dinner in Gion",
+                "description": "Enjoy a vegetarian dinner.",
+                "place_category": "Restaurant",
+                "indoor_outdoor": "Indoor",
+              }
+            ],
+          }
+        ],
+      }
+
+    return {
+      "title": "A repaired Kyoto food plan",
+      "destination": "Kyoto, Japan",
+      "duration_days": 2,
+      "preferences_used": ["vegetarian"],
+      "assumptions": [],
+      "days": [
+        {
+          "day_number": 1,
+          "theme": "Quiet Kyoto",
+          "timeline_items": [
+            {
+              "type": "meal",
+              "start_time": "18:00",
+              "end_time": "19:30",
+              "title": "Dinner in Gion",
+              "description": "Enjoy a vegetarian dinner.",
+              "area": "Gion",
+              "cuisine": "Japanese vegetarian",
+              "dietary_fit": ["vegetarian"],
+              "reservation_recommended": False,
+            }
+          ],
+        }
+      ],
+    }
+
 class AlwaysInvalidFakeOllamaClient:
   def structured_chat(self, *, messages, model, response_format):
     return {
@@ -253,6 +313,52 @@ def test_transport_item_accepts_complete_transport_metadata() -> None:
   assert item.duration_minutes == 15
 
 
+def test_meal_item_requires_food_metadata() -> None:
+  with pytest.raises(ValidationError):
+    TimelineItem(
+      type="meal",
+      start_time="18:00",
+      end_time="19:30",
+      title="Dinner in Gion",
+      description="Enjoy dinner.",
+    )
+
+
+def test_cafe_item_requires_reservation_recommendation() -> None:
+  with pytest.raises(ValidationError):
+    TimelineItem(
+      type="cafe",
+      start_time="10:45",
+      end_time="11:30",
+      title="Cafe Break",
+      description="Coffee break.",
+    )
+
+
+def test_place_item_rejects_restaurant_or_meal_titles() -> None:
+  with pytest.raises(ValidationError):
+    TimelineItem(
+      type="place",
+      start_time="18:00",
+      end_time="19:30",
+      title="Dinner in Gion",
+      description="Enjoy a vegetarian dinner.",
+      place_category="Restaurant",
+      indoor_outdoor="Indoor",
+    )
+
+
+def test_place_item_requires_place_metadata() -> None:
+  with pytest.raises(ValidationError):
+    TimelineItem(
+      type="place",
+      start_time="09:30",
+      end_time="11:00",
+      title="Philosopher's Path",
+      description="A calm morning walk.",
+    )
+
+
 def test_generate_itinerary_plan_repairs_invalid_structured_output() -> None:
   client = RepairingFakeOllamaClient()
 
@@ -271,6 +377,25 @@ def test_generate_itinerary_plan_repairs_invalid_structured_output() -> None:
   assert plan.title == "A repaired Kyoto plan"
   assert plan.days[0].timeline_items[0].duration_minutes == 20
   assert "Repair" in client.messages[1][0]["content"]
+
+
+def test_generate_itinerary_plan_repairs_misclassified_meal() -> None:
+  client = TypeRepairingFakeOllamaClient()
+
+  plan = generate_itinerary_plan(
+    context=ActivePlanContext(
+      destination_city="Kyoto",
+      country="Japan",
+      duration_days=2,
+      food_preferences=["vegetarian"],
+    ),
+    model="qwen3.6:27b",
+    client=client,
+  )
+
+  assert client.calls == 2
+  assert plan.days[0].timeline_items[0].type == "meal"
+  assert plan.days[0].timeline_items[0].dietary_fit == ["vegetarian"]
 
 
 def test_generate_itinerary_plan_raises_when_repair_fails() -> None:
