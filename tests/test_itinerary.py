@@ -2,7 +2,12 @@ from northstar.agent.context import ActivePlanContext
 import pytest
 from pydantic import ValidationError
 
-from northstar.agent.itinerary import ItineraryPlan, TimelineItem, generate_itinerary_plan
+from northstar.agent.itinerary import (
+  ItineraryGenerationError,
+  ItineraryPlan,
+  TimelineItem,
+  generate_itinerary_plan,
+)
 from northstar.rag.schemas import RagContext, RagSource
 
 class CapturingFakeOllamaClient:
@@ -72,6 +77,91 @@ class FakeOllamaClient:
               "preference_match": ["relaxed pace"],
               "source_notes": [],
             },
+          ],
+        }
+      ],
+    }
+
+class RepairingFakeOllamaClient:
+  def __init__(self) -> None:
+    self.calls = 0
+    self.messages = []
+
+  def structured_chat(self, *, messages, model, response_format):
+    self.calls += 1
+    self.messages.append(messages)
+
+    if self.calls == 1:
+      return {
+        "title": "A plan with incomplete transport",
+        "destination": "Kyoto, Japan",
+        "duration_days": 2,
+        "preferences_used": ["cafes"],
+        "assumptions": [],
+        "days": [
+          {
+            "day_number": 1,
+            "theme": "Quiet Kyoto",
+            "timeline_items": [
+              {
+                "type": "transport",
+                "start_time": "10:00",
+                "end_time": "10:20",
+                "title": "Move to Gion",
+                "description": "Travel to Gion.",
+              }
+            ],
+          }
+        ],
+      }
+
+    return {
+      "title": "A repaired Kyoto plan",
+      "destination": "Kyoto, Japan",
+      "duration_days": 2,
+      "preferences_used": ["cafes"],
+      "assumptions": [],
+      "days": [
+        {
+          "day_number": 1,
+          "theme": "Quiet Kyoto",
+          "timeline_items": [
+            {
+              "type": "transport",
+              "start_time": "10:00",
+              "end_time": "10:20",
+              "title": "Move to Gion",
+              "description": "Travel to Gion.",
+              "transport_mode": "bus",
+              "from_location": "Philosopher's Path",
+              "to_location": "Gion",
+              "duration_minutes": 20,
+            }
+          ],
+        }
+      ],
+    }
+
+class AlwaysInvalidFakeOllamaClient:
+  def structured_chat(self, *, messages, model, response_format):
+    return {
+      "title": "Still invalid",
+      "destination": "Kyoto, Japan",
+      "duration_days": 2,
+      "preferences_used": [],
+      "assumptions": [],
+      "days": [
+        {
+          "day_number": 1,
+          "theme": "Invalid transport",
+          "timeline_items": [
+            {
+              "type": "transport",
+              "start_time": "10:00",
+              "end_time": "10:20",
+              "title": "Move to Gion",
+              "description": "Travel to Gion.",
+            }
           ],
         }
       ],
@@ -161,3 +251,36 @@ def test_transport_item_accepts_complete_transport_metadata() -> None:
 
   assert item.transport_mode == "walk"
   assert item.duration_minutes == 15
+
+
+def test_generate_itinerary_plan_repairs_invalid_structured_output() -> None:
+  client = RepairingFakeOllamaClient()
+
+  plan = generate_itinerary_plan(
+    context=ActivePlanContext(
+      destination_city="Kyoto",
+      country="Japan",
+      duration_days=2,
+      interests=["cafes"],
+    ),
+    model="qwen3.6:27b",
+    client=client,
+  )
+
+  assert client.calls == 2
+  assert plan.title == "A repaired Kyoto plan"
+  assert plan.days[0].timeline_items[0].duration_minutes == 20
+  assert "Repair" in client.messages[1][0]["content"]
+
+
+def test_generate_itinerary_plan_raises_when_repair_fails() -> None:
+  with pytest.raises(ItineraryGenerationError, match="validate"):
+    generate_itinerary_plan(
+      context=ActivePlanContext(
+        destination_city="Kyoto",
+        country="Japan",
+        duration_days=2,
+      ),
+      model="qwen3.6:27b",
+      client=AlwaysInvalidFakeOllamaClient(),
+    )

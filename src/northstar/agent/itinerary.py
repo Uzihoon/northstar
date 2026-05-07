@@ -114,6 +114,56 @@ Rules:
 - If exact dates are missing, make reasonable timing assumptions and include them in assumptions.
 """.strip()
 
+ITINERARY_REPAIR_SYSTEM_PROMPT = """
+Repair structured itinerary JSON.
+
+Rules:
+- Return only JSON matching the schema.
+- Preserve the original itinerary intent, destination, timing, and user preferences.
+- Fix only schema or validation problems.
+- Do not add new facts unless required to satisfy validation.
+- For transport items, include transport_mode, from_location, to_location, and duration_minutes.
+""".strip()
+
+def _build_itinerary_user_payload(
+    *,
+    context: ActivePlanContext,
+    rag_context: RagContext | None,
+) -> dict[str, object]:
+  return {
+    "active_context": context.model_dump(mode="json"),
+    "rag_context": rag_context.model_dump(mode="json") if rag_context else None
+  }
+
+def repair_structured_itinerary(
+    *,
+    invalid_payload: dict[str, object],
+    validation_error: ValidationError,
+    context: ActivePlanContext,
+    rag_context: RagContext | None,
+    model: str,
+    client: OllamaClient,
+) -> ItineraryPlan:
+  repair_payload = {
+    "validation_error": str(validation_error),
+    "original_payload": invalid_payload,
+    "generation_context": _build_itinerary_user_payload(
+      context=context,
+      rag_context=rag_context,
+    ),
+  }
+
+  repaired_payload = client.structured_chat(
+    messages=[
+      {"role": "system", "content": ITINERARY_REPAIR_SYSTEM_PROMPT},
+      {"role": "user", "content": json.dumps(repair_payload, indent=2)}
+    ],
+    model=model,
+    response_format=ItineraryPlan.model_json_schema(),
+  )
+
+  return ItineraryPlan.model_validate(repaired_payload)
+
 def generate_itinerary_plan(
     *,
     context: ActivePlanContext,
@@ -121,10 +171,10 @@ def generate_itinerary_plan(
     client: OllamaClient,
     rag_context: RagContext | None = None,
 ) -> ItineraryPlan:
-  user_payload = {
-    "active_context": context.model_dump(mode="json"),
-    "rag_context": rag_context.model_dump(mode="json") if rag_context else None
-  }
+  user_payload = _build_itinerary_user_payload(
+    context=context,
+    rag_context=rag_context,
+  )
 
   try:
     payload = client.structured_chat(
@@ -135,10 +185,20 @@ def generate_itinerary_plan(
       model=model,
       response_format=ItineraryPlan.model_json_schema(),
     )
-    return ItineraryPlan.model_validate(payload)
+    try:
+      return ItineraryPlan.model_validate(payload)
+    except ValidationError as exc:
+      return repair_structured_itinerary(
+        invalid_payload=payload,
+        validation_error=exc,
+        context=context,
+        rag_context=rag_context,
+        model=model,
+        client=client,
+      )
   except ValidationError as exc:
     raise ItineraryGenerationError(
-      "Northstar could not validate the generated itinerary."
+      "Northstar could not validate the generated itinerary after repair."
     ) from exc
   except RuntimeError as exc:
     raise ItineraryGenerationError(
