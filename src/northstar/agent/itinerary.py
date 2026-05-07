@@ -51,7 +51,8 @@ class TimelineItem(BaseModel):
 
   @model_validator(mode="after")
   def validate_type_specific_metadata(self) -> "TimelineItem":
-    title_and_description = f"{self.title} {self.description}".lower()
+    title = self.title.lower()
+    description = self.description.lower()
     place_category = (self.place_category or "").lower()
     food_words = [
       "breakfast",
@@ -63,14 +64,38 @@ class TimelineItem(BaseModel):
       "restaurant",
       "vegetarian",
     ]
-    has_food_intent = any(
-      word in title_and_description or word in place_category
-      for word in food_words
+    food_description_phrases = [
+      "breakfast at",
+      "brunch at",
+      "lunch break",
+      "lunch at",
+      "lunch in",
+      "dinner at",
+      "dinner in",
+      "enjoy dinner",
+      "coffee break",
+      "coffee stop",
+      "cafe break",
+      "café break",
+      "cafe stop",
+      "café stop",
+      "restaurant",
+      "vegetarian lunch",
+      "vegetarian dinner",
+    ]
+    has_food_intent = (
+      any(word in title or word in place_category for word in food_words)
+      or any(phrase in description for phrase in food_description_phrases)
     )
 
-    if has_food_intent and self.type not in {TimelineItemType.meal, TimelineItemType.cafe}:
+    if has_food_intent and self.type not in {
+      TimelineItemType.meal,
+      TimelineItemType.cafe,
+      TimelineItemType.transport,
+    }:
       raise ValueError(
-        "Food, cafe, coffee, or restaurant timeline items must use type=meal or type=cafe."
+        "Food, cafe, coffee, or restaurant timeline items must use type=meal or type=cafe "
+        "unless the item is transport to that location."
       )
 
     if self.type == TimelineItemType.transport:
@@ -147,6 +172,27 @@ class ItineraryPlan(BaseModel):
   assumptions: list[str] = Field(default_factory=list)
   days: list[ItineraryDay] = Field(default_factory=list)
 
+def _format_validation_error(exc: ValidationError) -> str:
+  first_error = exc.errors()[0]
+  location = ".".join(str(part) for part in first_error.get("loc", []))
+  message = first_error.get("msg", "Validation failed.")
+  offending_input = first_error.get("input")
+
+  if isinstance(offending_input, dict):
+    item_type = offending_input.get("type")
+    title = offending_input.get("title")
+
+    if item_type or title:
+      return (
+        f"{location}: {message} "
+        f"Offending item: type={item_type!r}, title={title!r}."
+      )
+
+  if location:
+    return f"{location}: {message}"
+
+  return str(message)
+
 ITINERARY_SYSTEM_PROMPT = """
 You create structured travel itineraries.
 
@@ -167,6 +213,7 @@ Rules:
 - Every meal item should include cuisine when known.
 - Every cafe item should include dietary_fit when food_preferences apply.
 - Food, cafe, coffee, restaurant, lunch, or dinner items must use type=meal or type=cafe.
+- Transport items may mention food/cafe locations only when the item is movement to that location.
 - Do not use break_time, free_time, note, or place for meals, cafes, coffee stops, or restaurants.
 - Use place items for museums, sightseeing, neighborhoods, parks, shops, and attractions.
 - Every place item should include place_category and indoor_outdoor.
@@ -189,6 +236,7 @@ Rules:
 - For meal items, include dietary_fit and reservation_recommended. Include cuisine when known.
 - For cafe items, include reservation_recommended.
 - Food, cafe, coffee, restaurant, lunch, or dinner items must use type=meal or type=cafe.
+- Transport items may mention food/cafe locations only when the item is movement to that location.
 - Do not use break_time, free_time, note, or place for meals, cafes, coffee stops, or restaurants.
 - For place items, include place_category and indoor_outdoor.
 """.strip()
@@ -267,7 +315,7 @@ def generate_itinerary_plan(
   except ValidationError as exc:
     raise ItineraryGenerationError(
       "Northstar could not validate the generated itinerary after repair. "
-      f"{exc.errors()[0]['msg']}"
+      f"{_format_validation_error(exc)}"
     ) from exc
   except RuntimeError as exc:
     raise ItineraryGenerationError(

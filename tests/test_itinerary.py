@@ -313,6 +313,22 @@ def test_transport_item_accepts_complete_transport_metadata() -> None:
   assert item.duration_minutes == 15
 
 
+def test_transport_item_allows_food_destination_intent() -> None:
+  item = TimelineItem(
+    type="transport",
+    start_time="10:30",
+    end_time="10:45",
+    title="Travel to Cafe Area",
+    description="Move from Higashiyama toward a cafe area.",
+    transport_mode="walk",
+    from_location="Higashiyama",
+    to_location="Cafe Area",
+    duration_minutes=15,
+  )
+
+  assert item.type == "transport"
+
+
 def test_meal_item_requires_food_metadata() -> None:
   with pytest.raises(ValidationError):
     TimelineItem(
@@ -385,6 +401,18 @@ def test_free_time_item_rejects_cafe_intent() -> None:
     )
 
 
+def test_free_time_item_allows_incidental_dinner_reference() -> None:
+  item = TimelineItem(
+    type="free_time",
+    start_time="17:30",
+    end_time="18:30",
+    title="Relax/Return to Accommodation",
+    description="Rest at the hotel before dinner.",
+  )
+
+  assert item.type == "free_time"
+
+
 def test_place_item_requires_place_metadata() -> None:
   with pytest.raises(ValidationError):
     TimelineItem(
@@ -436,7 +464,7 @@ def test_generate_itinerary_plan_repairs_misclassified_meal() -> None:
 
 
 def test_generate_itinerary_plan_raises_when_repair_fails() -> None:
-  with pytest.raises(ItineraryGenerationError, match="validate"):
+  with pytest.raises(ItineraryGenerationError, match="days.0.timeline_items.0"):
     generate_itinerary_plan(
       context=ActivePlanContext(
         destination_city="Kyoto",
