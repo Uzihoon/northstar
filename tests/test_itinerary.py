@@ -1,5 +1,8 @@
 from northstar.agent.context import ActivePlanContext
-from northstar.agent.itinerary import ItineraryPlan, generate_itinerary_plan
+import pytest
+from pydantic import ValidationError
+
+from northstar.agent.itinerary import ItineraryPlan, TimelineItem, generate_itinerary_plan
 from northstar.rag.schemas import RagContext, RagSource
 
 class CapturingFakeOllamaClient:
@@ -130,3 +133,31 @@ def test_generate_itinerary_plan_includes_rag_context_in_prompt() -> None:
 
   assert "Philosopher's Path is useful for quiet cafe breaks." in user_message
   assert "rag_docs/japan/kyoto/cafes.md" in user_message
+
+
+def test_transport_item_requires_transport_metadata() -> None:
+  with pytest.raises(ValidationError):
+    TimelineItem(
+      type="transport",
+      start_time="10:30",
+      end_time="10:45",
+      title="Walk through Sannenzaka and Ninenzaka",
+      description="A scenic walk through preserved streets.",
+    )
+
+
+def test_transport_item_accepts_complete_transport_metadata() -> None:
+  item = TimelineItem(
+    type="transport",
+    start_time="10:30",
+    end_time="10:45",
+    title="Walk from Kiyomizu-dera to Sannenzaka",
+    description="Move from the temple toward the historic streets.",
+    transport_mode="walk",
+    from_location="Kiyomizu-dera",
+    to_location="Sannenzaka",
+    duration_minutes=15,
+  )
+
+  assert item.transport_mode == "walk"
+  assert item.duration_minutes == 15

@@ -1,7 +1,7 @@
 import json
 from enum import Enum
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from northstar.agent.context import ActivePlanContext
 from northstar.ollama_client import OllamaClient
@@ -49,6 +49,30 @@ class TimelineItem(BaseModel):
   indoor_outdoor: str | None = None
   estimated_cost: str | None = None
 
+  @model_validator(mode="after")
+  def validate_transport_metadata(self) -> "TimelineItem":
+    if self.type != TimelineItemType.transport:
+      return self
+
+    missing_fields: list[str] = []
+    if not self.transport_mode:
+      missing_fields.append("transport_mode")
+    if not self.from_location:
+      missing_fields.append("from_location")
+    if not self.to_location:
+      missing_fields.append("to_location")
+    if self.duration_minutes is None:
+      missing_fields.append("duration_minutes")
+
+    if missing_fields:
+      raise ValueError(
+        "Transport timeline items must include "
+        + ", ".join(missing_fields)
+        + "."
+      )
+
+    return self
+
 class ItineraryDay(BaseModel):
   day_number: int
   date: str | None = None
@@ -73,9 +97,17 @@ Rules:
 - Return only JSON matching the schema.
 - Build a realistic day-by-day timeline.
 - Every timeline item must include start_time and end_time in HH:MM 24-hour format.
-- Use transport items when moving between areas or major stops.
+- Every timeline item should include area when the location or neighborhood is known.
+- Every timeline item should include at least one preference_match when it supports a user preference.
+- Use transport items only for movement between two locations or areas.
+- Do not label scenic walking or neighborhood exploration as transport unless the main purpose is moving from one location to another.
+- Every transport item must include transport_mode, from_location, to_location, and duration_minutes.
 - Use meal or cafe items for food and drink stops.
+- Every meal item should include cuisine, dietary_fit, and reservation_recommended.
+- Every cafe item should include dietary_fit when food_preferences apply.
 - Use place items for museums, sightseeing, neighborhoods, parks, shops, and attractions.
+- Every place item should include place_category and indoor_outdoor.
+- Use place or free_time for scenic walks, browsing, wandering, or neighborhood exploration.
 - Use time_source=model_estimate unless the context explicitly provides exact timing.
 - Use break_time items for rest, downtime, buffer time, or recovery between activities.
 - Mention user preferences in preferences_used and preference_match.
