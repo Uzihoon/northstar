@@ -5,7 +5,11 @@ from sqlalchemy.orm import Session
 
 from northstar.agent.context import ActivePlanContext, build_active_plan_context
 from northstar.agent.extract import extract_trip_request
-from northstar.agent.itinerary import ItineraryPlan, generate_itinerary_plan
+from northstar.agent.itinerary import (
+  ItineraryGenerationDiagnostics,
+  ItineraryPlan,
+  generate_itinerary_plan,
+)
 from northstar.agent.schemas import TripRequest
 from northstar.memory.plan_store import SavedItineraryPlan, save_itinerary_plan
 from northstar.memory.profile_store import load_profile
@@ -19,6 +23,7 @@ class GeneratedItineraryResult:
   trip_request: TripRequest
   active_context: ActivePlanContext
   itinerary: ItineraryPlan
+  itinerary_diagnostics: ItineraryGenerationDiagnostics
   rag_context: RagContext | None = None
   saved: SavedItineraryPlan | None = None
 
@@ -47,12 +52,13 @@ def generate_and_optionally_save_itinerary(
   if rag_retriever is not None:
     rag_context = rag_retriever(session, active_context)
 
-  itinerary = generate_itinerary_plan(
+  itinerary_generation = generate_itinerary_plan(
     context=active_context,
     model=model,
     client=client,
     rag_context=rag_context,
   )
+  itinerary = itinerary_generation.itinerary
 
   saved = None
 
@@ -65,6 +71,7 @@ def generate_and_optionally_save_itinerary(
       active_context=active_context,
       itinerary=itinerary,
       rag_context=rag_context,
+      itinerary_diagnostics=itinerary_generation.diagnostics,
       model_name=model
     )
 
@@ -72,6 +79,7 @@ def generate_and_optionally_save_itinerary(
     trip_request=trip_request,
     active_context=active_context,
     itinerary=itinerary,
+    itinerary_diagnostics=itinerary_generation.diagnostics,
     rag_context=rag_context,
     saved=saved,
   )

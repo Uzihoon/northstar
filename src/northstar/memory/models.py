@@ -76,6 +76,7 @@ class ItineraryPlanModel(Base):
   model_name: Mapped[str] = mapped_column(String(128))
   itinerary: Mapped[dict[str, object]] = mapped_column(JSON)
   rag_context: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
+  itinerary_diagnostics: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
   created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
   trip_request: Mapped[TripRequestModel] = relationship(back_populates="plans")

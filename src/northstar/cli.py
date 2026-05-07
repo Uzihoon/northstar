@@ -214,6 +214,11 @@ def plan_json(
     "trip_request": result.trip_request.model_dump(mode="json"),
     "active_context": result.active_context.model_dump(mode="json"),
     "itinerary": result.itinerary.model_dump(mode="json"),
+    "itinerary_diagnostics": {
+      "repair_attempted": result.itinerary_diagnostics.repair_attempted,
+      "repair_succeeded": result.itinerary_diagnostics.repair_succeeded,
+      "initial_validation_error": result.itinerary_diagnostics.initial_validation_error,
+    },
     "rag_context": result.rag_context.model_dump(mode="json") if result.rag_context else None,
   }, indent=2))
 
@@ -368,6 +373,7 @@ def show_plan(
     "active_context": plan.active_context,
     "itinerary": plan.itinerary,
     "rag_context": plan.rag_context,
+    "itinerary_diagnostics": plan.itinerary_diagnostics,
     "model_name": plan.model_name,
     "created_at": plan.created_at,
   }, indent=2))

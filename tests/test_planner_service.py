@@ -104,6 +104,7 @@ def test_generate_and_optionally_save_itinerary_saves_rows(session: Session) -> 
   ]
   assert plan_rows[0].id == result.saved.plan_id
   assert plan_rows[0].itinerary == result.itinerary.model_dump(mode="json")
+  assert result.itinerary_diagnostics.repair_attempted is False
 
 
 def test_generate_and_optionally_save_itinerary_can_skip_saving(session: Session) -> None:
@@ -123,6 +124,7 @@ def test_generate_and_optionally_save_itinerary_can_skip_saving(session: Session
   assert trip_rows == []
   assert plan_rows == []
   assert result.itinerary.destination == "Kyoto, Japan"
+  assert result.itinerary_diagnostics.repair_attempted is False
 
 def test_generate_and_optionally_save_itinerary_persists_rag_context(session: Session) -> None:
   rag_context = RagContext(
@@ -154,4 +156,11 @@ def test_generate_and_optionally_save_itinerary_persists_rag_context(session: Se
   plan_rows = session.scalars(select(ItineraryPlanModel)).all()
 
   assert result.rag_context == rag_context
-  assert plan_rows[0].rag_context == rag_context.model_dump(mode="json")
+  assert plan_rows[0].rag_context is not None
+  assert plan_rows[0].rag_context["sources"][0]["source_path"] == "rag_docs/japan/kyoto/cafes.md"
+  assert "notes" not in plan_rows[0].rag_context
+  assert plan_rows[0].itinerary_diagnostics == {
+    "repair_attempted": False,
+    "repair_succeeded": False,
+    "initial_validation_error": None,
+  }

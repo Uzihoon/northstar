@@ -98,7 +98,12 @@ def create_itinerary_plan(request: ItineraryPlanRequest) -> dict:
     "trip_request": result.trip_request.model_dump(mode="json"),
     "active_context": result.active_context.model_dump(mode="json"),
     "rag_context": result.rag_context.model_dump(mode="json") if result.rag_context else None,
-    "itinerary": result.itinerary.model_dump(mode="json")
+    "itinerary": result.itinerary.model_dump(mode="json"),
+    "itinerary_diagnostics": {
+      "repair_attempted": result.itinerary_diagnostics.repair_attempted,
+      "repair_succeeded": result.itinerary_diagnostics.repair_succeeded,
+      "initial_validation_error": result.itinerary_diagnostics.initial_validation_error,
+    }
   }
 
 @app.get("/itinerary-plans")
@@ -143,5 +148,6 @@ def get_saved_itinerary_plan(plan_id: str, user: str = "local") -> dict:
     "itinerary": plan.itinerary,
     "model_name": plan.model_name,
     "rag_context": plan.rag_context,
+    "itinerary_diagnostics": plan.itinerary_diagnostics,
     "created_at": plan.created_at
   }

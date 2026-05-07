@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass
 from enum import Enum
 
 from pydantic import BaseModel, Field, ValidationError, model_validator
@@ -172,6 +173,17 @@ class ItineraryPlan(BaseModel):
   assumptions: list[str] = Field(default_factory=list)
   days: list[ItineraryDay] = Field(default_factory=list)
 
+@dataclass(frozen=True)
+class ItineraryGenerationDiagnostics:
+  repair_attempted: bool = False
+  repair_succeeded: bool = False
+  initial_validation_error: str | None = None
+
+@dataclass(frozen=True)
+class ItineraryGenerationResult:
+  itinerary: ItineraryPlan
+  diagnostics: ItineraryGenerationDiagnostics
+
 def _format_validation_error(exc: ValidationError) -> str:
   first_error = exc.errors()[0]
   location = ".".join(str(part) for part in first_error.get("loc", []))
@@ -286,7 +298,7 @@ def generate_itinerary_plan(
     model: str,
     client: OllamaClient,
     rag_context: RagContext | None = None,
-) -> ItineraryPlan:
+) -> ItineraryGenerationResult:
   user_payload = _build_itinerary_user_payload(
     context=context,
     rag_context=rag_context,
@@ -302,15 +314,28 @@ def generate_itinerary_plan(
       response_format=ItineraryPlan.model_json_schema(),
     )
     try:
-      return ItineraryPlan.model_validate(payload)
+      itinerary = ItineraryPlan.model_validate(payload)
+      return ItineraryGenerationResult(
+        itinerary=itinerary,
+        diagnostics=ItineraryGenerationDiagnostics(),
+      )
     except ValidationError as exc:
-      return repair_structured_itinerary(
+      initial_validation_error = _format_validation_error(exc)
+      itinerary = repair_structured_itinerary(
         invalid_payload=payload,
         validation_error=exc,
         context=context,
         rag_context=rag_context,
         model=model,
         client=client,
+      )
+      return ItineraryGenerationResult(
+        itinerary=itinerary,
+        diagnostics=ItineraryGenerationDiagnostics(
+          repair_attempted=True,
+          repair_succeeded=True,
+          initial_validation_error=initial_validation_error,
+        ),
       )
   except ValidationError as exc:
     raise ItineraryGenerationError(

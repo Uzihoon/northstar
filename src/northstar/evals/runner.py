@@ -67,7 +67,7 @@ def run_eval_suite(
         context=context,
         model=model,
         client=client,
-      ).model_dump(mode="json")
+      ).itinerary.model_dump(mode="json")
     else:
       raise ValueError(f"Unknown eval suite: {suite}")
     

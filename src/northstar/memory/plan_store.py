@@ -1,3 +1,4 @@
+import hashlib
 from dataclasses import dataclass
 from typing import Any
 
@@ -5,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc, select
 
 from northstar.agent.context import ActivePlanContext
-from northstar.agent.itinerary import ItineraryPlan
+from northstar.agent.itinerary import ItineraryGenerationDiagnostics, ItineraryPlan
 from northstar.agent.schemas import TripRequest
 from northstar.memory.models import ItineraryPlanModel, TripRequestModel
 from northstar.memory.profile_store import get_or_create_user
@@ -34,8 +35,31 @@ class StoredItineraryPlan:
   active_context: dict[str, object]
   itinerary: dict[str, object]
   rag_context: dict[str, object] | None
+  itinerary_diagnostics: dict[str, object] | None
   model_name: str
   created_at: str
+
+def hash_rag_note(text: str) -> str:
+  digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+  return f"sha256:{digest}"
+
+def compact_rag_context_for_storage(
+    rag_context: RagContext | None,
+) -> dict[str, object] | None:
+  if rag_context is None:
+    return None
+
+  return {
+    "query": rag_context.query,
+    "sources": [
+      source.model_dump(mode="json")
+      for source in rag_context.sources
+    ],
+    "note_hashes": [
+      hash_rag_note(note)
+      for note in rag_context.notes
+    ],
+  }
 
 def save_itinerary_plan(
     session: Session,
@@ -47,6 +71,7 @@ def save_itinerary_plan(
     itinerary: ItineraryPlan,
     model_name: str,
     rag_context: RagContext | None = None,
+    itinerary_diagnostics: ItineraryGenerationDiagnostics | None = None,
 ) -> SavedItineraryPlan:
   user = get_or_create_user(session, user_slug=user_slug)
 
@@ -63,7 +88,8 @@ def save_itinerary_plan(
     trip_request_id=trip_row.id,
     model_name=model_name,
     itinerary=itinerary.model_dump(mode="json"),
-    rag_context=rag_context.model_dump(mode="json") if rag_context else None,
+    rag_context=compact_rag_context_for_storage(rag_context),
+    itinerary_diagnostics=itinerary_diagnostics.__dict__ if itinerary_diagnostics else None,
   )
   session.add(plan_row)
   session.commit()
@@ -132,6 +158,7 @@ def get_itinerary_plan(
     active_context=trip_row.active_context,
     itinerary=plan_row.itinerary,
     rag_context=plan_row.rag_context,
+    itinerary_diagnostics=plan_row.itinerary_diagnostics,
     model_name=plan_row.model_name,
     created_at=plan_row.created_at.isoformat(),
   )

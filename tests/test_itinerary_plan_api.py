@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 
 import northstar.api.app as app_module
 from northstar.agent.context import ActivePlanContext
-from northstar.agent.itinerary import ItineraryPlan
+from northstar.agent.itinerary import ItineraryGenerationDiagnostics, ItineraryPlan
 from northstar.agent.planner_service import GeneratedItineraryResult
 from northstar.agent.schemas import TripRequest
 from northstar.memory.plan_store import (
@@ -69,6 +69,11 @@ def test_create_itinerary_plan_returns_saved_plan(monkeypatch) -> None:
         assumptions=[],
         days=[],
       ),
+      itinerary_diagnostics=ItineraryGenerationDiagnostics(
+        repair_attempted=True,
+        repair_succeeded=True,
+        initial_validation_error="days.0.timeline_items.0: fixed",
+      ),
       saved=SavedItineraryPlan(
         trip_request_id="trip-123",
         plan_id="plan-123",
@@ -100,6 +105,7 @@ def test_create_itinerary_plan_returns_saved_plan(monkeypatch) -> None:
   assert data["trip_request"]["destination_city"] == "Kyoto"
   assert data["active_context"]["interests"] == ["cafes"]
   assert data["itinerary"]["destination"] == "Kyoto, Japan"
+  assert data["itinerary_diagnostics"]["repair_attempted"] is True
   assert data["rag_context"]["sources"][0]["source_path"] == "rag_docs/japan/kyoto/cafes.md"
 
 
@@ -162,7 +168,7 @@ def test_get_itinerary_plan_returns_saved_plan_with_rag_context(monkeypatch) -> 
       },
       rag_context={
         "query": "Kyoto Japan interests: cafes",
-        "notes": ["Kyoto has quiet cafe breaks near the Philosopher's Path."],
+        "note_hashes": ["sha256:test"],
         "sources": [
           {
             "chunk_id": "chunk-1",
@@ -171,6 +177,11 @@ def test_get_itinerary_plan_returns_saved_plan_with_rag_context(monkeypatch) -> 
             "metadata": {"country": "japan", "city": "kyoto"},
           }
         ],
+      },
+      itinerary_diagnostics={
+        "repair_attempted": True,
+        "repair_succeeded": True,
+        "initial_validation_error": "days.0.timeline_items.5: fixed",
       },
       model_name="qwen3.6:27b",
       created_at="2026-05-05T10:00:00",
@@ -188,6 +199,8 @@ def test_get_itinerary_plan_returns_saved_plan_with_rag_context(monkeypatch) -> 
   assert data["original_prompt"] == "Plan 2 quiet days in Kyoto."
   assert "original_promp" not in data
   assert data["rag_context"]["sources"][0]["source_path"] == "rag_docs/japan/kyoto/cafes.md"
+  assert data["rag_context"]["note_hashes"] == ["sha256:test"]
+  assert data["itinerary_diagnostics"]["repair_attempted"] is True
 
 
 def test_get_itinerary_plan_returns_404_when_missing(monkeypatch) -> None:

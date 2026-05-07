@@ -244,12 +244,13 @@ def test_generate_itinerary_plan_returns_validated_plan() -> None:
     client=FakeOllamaClient(),
   )
 
-  assert isinstance(plan, ItineraryPlan)
-  assert plan.destination == "Kyoto, Japan"
-  assert plan.days[0].timeline_items[0].type == "place"
-  assert plan.days[0].timeline_items[1].type == "transport"
-  assert plan.days[0].timeline_items[1].duration_minutes == 25
-  assert plan.days[0].timeline_items[2].type == "break_time"
+  assert isinstance(plan.itinerary, ItineraryPlan)
+  assert plan.itinerary.destination == "Kyoto, Japan"
+  assert plan.diagnostics.repair_attempted is False
+  assert plan.itinerary.days[0].timeline_items[0].type == "place"
+  assert plan.itinerary.days[0].timeline_items[1].type == "transport"
+  assert plan.itinerary.days[0].timeline_items[1].duration_minutes == 25
+  assert plan.itinerary.days[0].timeline_items[2].type == "break_time"
 
 def test_generate_itinerary_plan_includes_rag_context_in_prompt() -> None:
   client = CapturingFakeOllamaClient()
@@ -439,8 +440,11 @@ def test_generate_itinerary_plan_repairs_invalid_structured_output() -> None:
   )
 
   assert client.calls == 2
-  assert plan.title == "A repaired Kyoto plan"
-  assert plan.days[0].timeline_items[0].duration_minutes == 20
+  assert plan.itinerary.title == "A repaired Kyoto plan"
+  assert plan.diagnostics.repair_attempted is True
+  assert plan.diagnostics.repair_succeeded is True
+  assert plan.diagnostics.initial_validation_error is not None
+  assert plan.itinerary.days[0].timeline_items[0].duration_minutes == 20
   assert "Repair" in client.messages[1][0]["content"]
 
 
@@ -459,8 +463,9 @@ def test_generate_itinerary_plan_repairs_misclassified_meal() -> None:
   )
 
   assert client.calls == 2
-  assert plan.days[0].timeline_items[0].type == "meal"
-  assert plan.days[0].timeline_items[0].dietary_fit == ["vegetarian"]
+  assert plan.diagnostics.repair_attempted is True
+  assert plan.itinerary.days[0].timeline_items[0].type == "meal"
+  assert plan.itinerary.days[0].timeline_items[0].dietary_fit == ["vegetarian"]
 
 
 def test_generate_itinerary_plan_raises_when_repair_fails() -> None:

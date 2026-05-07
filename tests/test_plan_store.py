@@ -5,11 +5,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from northstar.agent.context import ActivePlanContext
-from northstar.agent.itinerary import ItineraryPlan
+from northstar.agent.itinerary import ItineraryGenerationDiagnostics, ItineraryPlan
 from northstar.agent.schemas import TripRequest
 from northstar.db import Base
 from northstar.rag.schemas import RagContext, RagSource
 from northstar.memory.plan_store import (
+  hash_rag_note,
   get_itinerary_plan,
   list_itinerary_plans,
   save_itinerary_plan,
@@ -30,6 +31,7 @@ def save_sample_plan(
     session: Session,
     user_slug: str = "local",
     rag_context: RagContext | None = None,
+    itinerary_diagnostics: ItineraryGenerationDiagnostics | None = None,
 ):
   return save_itinerary_plan(
     session,
@@ -56,6 +58,7 @@ def save_sample_plan(
     ),
     model_name="qwen3.6:27b",
     rag_context=rag_context,
+    itinerary_diagnostics=itinerary_diagnostics,
   )
 
 
@@ -97,12 +100,13 @@ def test_get_itinerary_plan_returns_none_for_other_user(session: Session) -> Non
 
   assert plan is None
 
-def test_get_itinerary_plan_returns_saved_rag_context(session: Session) -> None:
+def test_get_itinerary_plan_returns_compact_saved_rag_context(session: Session) -> None:
+  note = "Kyoto has quiet cafe breaks near the Philosopher's Path."
   saved = save_sample_plan(
     session,
     rag_context=RagContext(
       query="Kyoto Japan interests: cafes",
-      notes=["Kyoto has quiet cafe breaks near the Philosopher's Path."],
+      notes=[note],
       sources=[
         RagSource(
           chunk_id="chunk-1",
@@ -124,3 +128,29 @@ def test_get_itinerary_plan_returns_saved_rag_context(session: Session) -> None:
   assert plan.rag_context is not None
   assert plan.rag_context["query"] == "Kyoto Japan interests: cafes"
   assert plan.rag_context["sources"][0]["source_path"] == "rag_docs/japan/kyoto/cafes.md"
+  assert plan.rag_context["note_hashes"] == [hash_rag_note(note)]
+  assert "notes" not in plan.rag_context
+
+
+def test_get_itinerary_plan_returns_saved_itinerary_diagnostics(session: Session) -> None:
+  saved = save_sample_plan(
+    session,
+    itinerary_diagnostics=ItineraryGenerationDiagnostics(
+      repair_attempted=True,
+      repair_succeeded=True,
+      initial_validation_error="days.0.timeline_items.5: fixed",
+    ),
+  )
+
+  plan = get_itinerary_plan(
+    session,
+    user_slug="local",
+    plan_id=saved.plan_id,
+  )
+
+  assert plan is not None
+  assert plan.itinerary_diagnostics == {
+    "repair_attempted": True,
+    "repair_succeeded": True,
+    "initial_validation_error": "days.0.timeline_items.5: fixed",
+  }
