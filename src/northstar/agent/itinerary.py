@@ -51,6 +51,28 @@ class TimelineItem(BaseModel):
 
   @model_validator(mode="after")
   def validate_type_specific_metadata(self) -> "TimelineItem":
+    title_and_description = f"{self.title} {self.description}".lower()
+    place_category = (self.place_category or "").lower()
+    food_words = [
+      "breakfast",
+      "brunch",
+      "lunch",
+      "dinner",
+      "cafe",
+      "coffee",
+      "restaurant",
+      "vegetarian",
+    ]
+    has_food_intent = any(
+      word in title_and_description or word in place_category
+      for word in food_words
+    )
+
+    if has_food_intent and self.type not in {TimelineItemType.meal, TimelineItemType.cafe}:
+      raise ValueError(
+        "Food, cafe, coffee, or restaurant timeline items must use type=meal or type=cafe."
+      )
+
     if self.type == TimelineItemType.transport:
       missing_fields: list[str] = []
       if not self.transport_mode:
@@ -71,8 +93,6 @@ class TimelineItem(BaseModel):
 
     if self.type == TimelineItemType.meal:
       missing_fields = []
-      if not self.cuisine:
-        missing_fields.append("cuisine")
       if not self.dietary_fit:
         missing_fields.append("dietary_fit")
       if self.reservation_recommended is None:
@@ -98,15 +118,6 @@ class TimelineItem(BaseModel):
         )
 
     if self.type == TimelineItemType.place:
-      title = self.title.lower()
-      place_category = (self.place_category or "").lower()
-      food_words = ["breakfast", "brunch", "lunch", "dinner", "restaurant"]
-
-      if any(word in title or word in place_category for word in food_words):
-        raise ValueError(
-          "Food or restaurant timeline items must use type=meal or type=cafe, not type=place."
-        )
-
       missing_fields = []
       if not self.place_category:
         missing_fields.append("place_category")
@@ -152,8 +163,11 @@ Rules:
 - Do not label scenic walking or neighborhood exploration as transport unless the main purpose is moving from one location to another.
 - Every transport item must include transport_mode, from_location, to_location, and duration_minutes.
 - Use meal or cafe items for food and drink stops.
-- Every meal item should include cuisine, dietary_fit, and reservation_recommended.
+- Every meal item must include dietary_fit and reservation_recommended.
+- Every meal item should include cuisine when known.
 - Every cafe item should include dietary_fit when food_preferences apply.
+- Food, cafe, coffee, restaurant, lunch, or dinner items must use type=meal or type=cafe.
+- Do not use break_time, free_time, note, or place for meals, cafes, coffee stops, or restaurants.
 - Use place items for museums, sightseeing, neighborhoods, parks, shops, and attractions.
 - Every place item should include place_category and indoor_outdoor.
 - Use place or free_time for scenic walks, browsing, wandering, or neighborhood exploration.
@@ -172,9 +186,10 @@ Rules:
 - Fix only schema or validation problems.
 - Do not add new facts unless required to satisfy validation.
 - For transport items, include transport_mode, from_location, to_location, and duration_minutes.
-- For meal items, include cuisine, dietary_fit, and reservation_recommended.
+- For meal items, include dietary_fit and reservation_recommended. Include cuisine when known.
 - For cafe items, include reservation_recommended.
-- Food or restaurant timeline items must use type=meal or type=cafe, not type=place.
+- Food, cafe, coffee, restaurant, lunch, or dinner items must use type=meal or type=cafe.
+- Do not use break_time, free_time, note, or place for meals, cafes, coffee stops, or restaurants.
 - For place items, include place_category and indoor_outdoor.
 """.strip()
 
@@ -251,7 +266,8 @@ def generate_itinerary_plan(
       )
   except ValidationError as exc:
     raise ItineraryGenerationError(
-      "Northstar could not validate the generated itinerary after repair."
+      "Northstar could not validate the generated itinerary after repair. "
+      f"{exc.errors()[0]['msg']}"
     ) from exc
   except RuntimeError as exc:
     raise ItineraryGenerationError(

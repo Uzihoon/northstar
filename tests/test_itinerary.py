@@ -72,8 +72,8 @@ class FakeOllamaClient:
               "start_time": "11:25",
               "end_time": "12:00",
               "time_source": "model_estimate",
-              "title": "Slow buffer before lunch",
-              "description": "A short break to keep the day relaxed.",
+              "title": "Slow buffer before the next stop",
+              "description": "A short rest break to keep the day relaxed.",
               "preference_match": ["relaxed pace"],
               "source_notes": [],
             },
@@ -324,6 +324,21 @@ def test_meal_item_requires_food_metadata() -> None:
     )
 
 
+def test_meal_item_allows_missing_cuisine_when_dietary_metadata_exists() -> None:
+  item = TimelineItem(
+    type="meal",
+    start_time="18:00",
+    end_time="19:30",
+    title="Dinner in Gion",
+    description="Enjoy dinner.",
+    dietary_fit=["vegetarian"],
+    reservation_recommended=False,
+  )
+
+  assert item.cuisine is None
+  assert item.dietary_fit == ["vegetarian"]
+
+
 def test_cafe_item_requires_reservation_recommendation() -> None:
   with pytest.raises(ValidationError):
     TimelineItem(
@@ -345,6 +360,28 @@ def test_place_item_rejects_restaurant_or_meal_titles() -> None:
       description="Enjoy a vegetarian dinner.",
       place_category="Restaurant",
       indoor_outdoor="Indoor",
+    )
+
+
+def test_break_time_item_rejects_food_intent() -> None:
+  with pytest.raises(ValidationError):
+    TimelineItem(
+      type="break_time",
+      start_time="12:00",
+      end_time="13:30",
+      title="Lunch Break & Quiet Exploration",
+      description="Enjoy a relaxed vegetarian lunch in the area.",
+    )
+
+
+def test_free_time_item_rejects_cafe_intent() -> None:
+  with pytest.raises(ValidationError):
+    TimelineItem(
+      type="free_time",
+      start_time="15:00",
+      end_time="16:00",
+      title="Coffee and browsing",
+      description="A flexible coffee stop near downtown.",
     )
 
 
