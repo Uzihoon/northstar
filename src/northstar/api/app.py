@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
@@ -26,6 +28,43 @@ class ItineraryPlanRequest(BaseModel):
   user: str = "local"
   model: str | None = None
   save: bool = True
+
+class ItineraryDiagnosticsResponse(BaseModel):
+  repair_attempted: bool
+  repair_succeeded: bool
+  initial_validation_error: str | None = None
+
+class ItineraryPlanCreateResponse(BaseModel):
+  plan_id: str | None = None
+  trip_request_id: str | None = None
+  trip_request: dict[str, Any]
+  active_context: dict[str, Any]
+  rag_context: dict[str, Any] | None = None
+  itinerary: dict[str, Any]
+  itinerary_diagnostics: ItineraryDiagnosticsResponse
+
+class ItineraryPlanSummaryResponse(BaseModel):
+  plan_id: str
+  trip_request_id: str
+  original_prompt: str
+  title: str
+  destination: str
+  created_at: str
+
+class ItineraryPlanListResponse(BaseModel):
+  plans: list[ItineraryPlanSummaryResponse]
+
+class StoredItineraryPlanResponse(BaseModel):
+  plan_id: str
+  trip_request_id: str
+  original_prompt: str
+  trip_request: dict[str, Any]
+  active_context: dict[str, Any]
+  itinerary: dict[str, Any]
+  model_name: str
+  rag_context: dict[str, Any] | None = None
+  itinerary_diagnostics: ItineraryDiagnosticsResponse | None = None
+  created_at: str
 
 @app.get("/health")
 def health() -> dict[str, str]:
@@ -60,8 +99,8 @@ def chat(request: ChatRequest) -> ChatResponse:
   
   return ChatResponse(model=resolved_model, message=message)
 
-@app.post("/itinerary-plans")
-def create_itinerary_plan(request: ItineraryPlanRequest) -> dict:
+@app.post("/itinerary-plans", response_model=ItineraryPlanCreateResponse)
+def create_itinerary_plan(request: ItineraryPlanRequest) -> ItineraryPlanCreateResponse:
   settings = get_settings()
   resolved_model = request.model or settings.default_model
   client = get_ollama_client()
@@ -92,44 +131,44 @@ def create_itinerary_plan(request: ItineraryPlanRequest) -> dict:
   except SQLAlchemyError as exc:
     raise HTTPException(status_code=503, detail="Database is unavailable.") from exc
   
-  return {
-    "plan_id": result.saved.plan_id if result.saved else None,
-    "trip_request_id": result.saved.trip_request_id if result.saved else None,
-    "trip_request": result.trip_request.model_dump(mode="json"),
-    "active_context": result.active_context.model_dump(mode="json"),
-    "rag_context": result.rag_context.model_dump(mode="json") if result.rag_context else None,
-    "itinerary": result.itinerary.model_dump(mode="json"),
-    "itinerary_diagnostics": {
-      "repair_attempted": result.itinerary_diagnostics.repair_attempted,
-      "repair_succeeded": result.itinerary_diagnostics.repair_succeeded,
-      "initial_validation_error": result.itinerary_diagnostics.initial_validation_error,
-    }
-  }
+  return ItineraryPlanCreateResponse(
+    plan_id=result.saved.plan_id if result.saved else None,
+    trip_request_id=result.saved.trip_request_id if result.saved else None,
+    trip_request=result.trip_request.model_dump(mode="json"),
+    active_context=result.active_context.model_dump(mode="json"),
+    rag_context=result.rag_context.model_dump(mode="json") if result.rag_context else None,
+    itinerary=result.itinerary.model_dump(mode="json"),
+    itinerary_diagnostics=ItineraryDiagnosticsResponse(
+      repair_attempted=result.itinerary_diagnostics.repair_attempted,
+      repair_succeeded=result.itinerary_diagnostics.repair_succeeded,
+      initial_validation_error=result.itinerary_diagnostics.initial_validation_error,
+    ),
+  )
 
-@app.get("/itinerary-plans")
-def list_saved_itinerary_plans(user: str = "local") -> dict:
+@app.get("/itinerary-plans", response_model=ItineraryPlanListResponse)
+def list_saved_itinerary_plans(user: str = "local") -> ItineraryPlanListResponse:
   try:
     with get_session() as session:
       plans = list_itinerary_plans(session, user_slug=user)
   except SQLAlchemyError as exc:
     raise HTTPException(status_code=503, detail="Database is unavailable.") from exc
 
-  return {
-    "plans": [
-      {
-        "plan_id": plan.plan_id,
-        "trip_request_id": plan.trip_request_id,
-        "original_prompt": plan.original_prompt,
-        "title": plan.title,
-        "destination": plan.destination,
-        "created_at": plan.created_at,
-      }
+  return ItineraryPlanListResponse(
+    plans=[
+      ItineraryPlanSummaryResponse(
+        plan_id=plan.plan_id,
+        trip_request_id=plan.trip_request_id,
+        original_prompt=plan.original_prompt,
+        title=plan.title,
+        destination=plan.destination,
+        created_at=plan.created_at,
+      )
       for plan in plans
-    ]
-  }
+    ],
+  )
 
-@app.get("/itinerary-plans/{plan_id}")
-def get_saved_itinerary_plan(plan_id: str, user: str = "local") -> dict:
+@app.get("/itinerary-plans/{plan_id}", response_model=StoredItineraryPlanResponse)
+def get_saved_itinerary_plan(plan_id: str, user: str = "local") -> StoredItineraryPlanResponse:
   try:
     with get_session() as session:
       plan = get_itinerary_plan(session, user_slug=user, plan_id=plan_id)
@@ -139,15 +178,15 @@ def get_saved_itinerary_plan(plan_id: str, user: str = "local") -> dict:
   if plan is None:
     raise HTTPException(status_code=404, detail="Itinerary plan not found.")
   
-  return {
-    "plan_id": plan.plan_id,
-    "trip_request_id": plan.trip_request_id,
-    "original_prompt": plan.original_prompt,
-    "trip_request": plan.trip_request,
-    "active_context": plan.active_context,
-    "itinerary": plan.itinerary,
-    "model_name": plan.model_name,
-    "rag_context": plan.rag_context,
-    "itinerary_diagnostics": plan.itinerary_diagnostics,
-    "created_at": plan.created_at
-  }
+  return StoredItineraryPlanResponse(
+    plan_id=plan.plan_id,
+    trip_request_id=plan.trip_request_id,
+    original_prompt=plan.original_prompt,
+    trip_request=plan.trip_request,
+    active_context=plan.active_context,
+    itinerary=plan.itinerary,
+    model_name=plan.model_name,
+    rag_context=plan.rag_context,
+    itinerary_diagnostics=plan.itinerary_diagnostics,
+    created_at=plan.created_at,
+  )

@@ -15,6 +15,18 @@ from northstar.rag.schemas import RagContext, RagSource
 client = TestClient(app_module.app)
 
 
+def test_itinerary_plan_endpoints_publish_response_models() -> None:
+  schema = app_module.app.openapi()
+
+  create_schema = schema["paths"]["/itinerary-plans"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]
+  list_schema = schema["paths"]["/itinerary-plans"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+  detail_schema = schema["paths"]["/itinerary-plans/{plan_id}"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+
+  assert create_schema["$ref"].endswith("/ItineraryPlanCreateResponse")
+  assert list_schema["$ref"].endswith("/ItineraryPlanListResponse")
+  assert detail_schema["$ref"].endswith("/StoredItineraryPlanResponse")
+
+
 class FakeSession:
   def __enter__(self):
     return self
