@@ -1,13 +1,15 @@
 from typing import Any
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError
 
 from northstar.agent.extract import TripExtractionError
 from northstar.agent.itinerary import ItineraryGenerationError
+from northstar.agent.onboarding import OnboardingMessage, run_onboarding_turn
 from northstar.agent.plan_run_service import run_itinerary_plan_job
 from northstar.agent.planner_service import generate_and_optionally_save_itinerary
+from northstar.agent.profile_extract import PreferenceExtractionError
 from northstar.db import get_session
 from northstar.config import get_settings
 from northstar.ollama_client import OllamaError, get_ollama_client
@@ -36,6 +38,11 @@ class ItineraryPlanRunRequest(BaseModel):
   user: str = "local"
   model: str | None = None
   save: bool = True
+
+class OnboardingTurnRequest(BaseModel):
+  user: str = "local"
+  model: str | None = None
+  messages: list[OnboardingMessage] = Field(default_factory=list)
 
 class ItineraryDiagnosticsResponse(BaseModel):
   repair_attempted: bool
@@ -99,6 +106,13 @@ class ItineraryPlanRunResponse(BaseModel):
   created_at: str
   updated_at: str
 
+class OnboardingTurnResponse(BaseModel):
+  assistant_message: str
+  profile_patch: dict[str, Any]
+  profile: dict[str, Any]
+  is_complete: bool
+  next_focus: str
+
 @app.get("/health")
 def health() -> dict[str, str]:
   settings = get_settings()
@@ -131,6 +145,34 @@ def chat(request: ChatRequest) -> ChatResponse:
     raise HTTPException(status_code=503, detail=str(exc)) from exc
   
   return ChatResponse(model=resolved_model, message=message)
+
+@app.post("/onboarding/messages", response_model=OnboardingTurnResponse)
+def onboarding_messages(request: OnboardingTurnRequest) -> OnboardingTurnResponse:
+  settings = get_settings()
+  resolved_model = request.model or settings.default_model
+  client = get_ollama_client()
+
+  try:
+    with get_session() as session:
+      result = run_onboarding_turn(
+        session=session,
+        user_slug=request.user,
+        messages=request.messages,
+        model=resolved_model,
+        client=client,
+      )
+  except (OllamaError, PreferenceExtractionError) as exc:
+    raise HTTPException(status_code=503, detail=str(exc)) from exc
+  except SQLAlchemyError as exc:
+    raise HTTPException(status_code=503, detail="Database is unavailable.") from exc
+
+  return OnboardingTurnResponse(
+    assistant_message=result.assistant_message,
+    profile_patch=result.profile_patch,
+    profile=result.profile.model_dump(mode="json"),
+    is_complete=result.is_complete,
+    next_focus=result.next_focus,
+  )
 
 @app.post("/itinerary-plan-runs", response_model=ItineraryPlanRunStartResponse)
 def start_itinerary_plan_run(
