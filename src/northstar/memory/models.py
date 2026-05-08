@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from northstar.db import Base
@@ -80,6 +80,26 @@ class ItineraryPlanModel(Base):
   created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
   trip_request: Mapped[TripRequestModel] = relationship(back_populates="plans")
+
+class ItineraryPlanRunModel(Base):
+  __tablename__ = "itinerary_plan_runs"
+
+  id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+  user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+  original_prompt: Mapped[str] = mapped_column(Text)
+  model_name: Mapped[str] = mapped_column(String(128))
+  save: Mapped[bool] = mapped_column(Boolean, default=True)
+  status: Mapped[str] = mapped_column(String(32), index=True, default="queued")
+  progress_events: Mapped[list[dict[str, object]]] = mapped_column(JSON, default=list)
+  error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+  trip_request_id: Mapped[str | None] = mapped_column(ForeignKey("trip_requests.id"), nullable=True, index=True)
+  plan_id: Mapped[str | None] = mapped_column(ForeignKey("itinerary_plans.id"), nullable=True, index=True)
+  created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+  updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+  user: Mapped[User] = relationship()
+  trip_request: Mapped[TripRequestModel | None] = relationship()
+  plan: Mapped[ItineraryPlanModel | None] = relationship()
 
 class EvalRunModel(Base):
   __tablename__ = "eval_runs"

@@ -1,16 +1,18 @@
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 
 from northstar.agent.extract import TripExtractionError
 from northstar.agent.itinerary import ItineraryGenerationError
+from northstar.agent.plan_run_service import run_itinerary_plan_job
 from northstar.agent.planner_service import generate_and_optionally_save_itinerary
 from northstar.db import get_session
 from northstar.config import get_settings
 from northstar.ollama_client import OllamaError, get_ollama_client
 from northstar.memory.plan_store import get_itinerary_plan, list_itinerary_plans
+from northstar.memory.plan_run_store import create_itinerary_plan_run, get_itinerary_plan_run
 from northstar.rag.retriever import retrieve_travel_context
 
 app = FastAPI(title="Northstar API")
@@ -24,6 +26,12 @@ class ChatResponse(BaseModel):
   message: str
 
 class ItineraryPlanRequest(BaseModel):
+  prompt: str
+  user: str = "local"
+  model: str | None = None
+  save: bool = True
+
+class ItineraryPlanRunRequest(BaseModel):
   prompt: str
   user: str = "local"
   model: str | None = None
@@ -66,6 +74,31 @@ class StoredItineraryPlanResponse(BaseModel):
   itinerary_diagnostics: ItineraryDiagnosticsResponse | None = None
   created_at: str
 
+class ItineraryPlanRunEventResponse(BaseModel):
+  status: str
+  message: str
+
+class ItineraryPlanRunStartResponse(BaseModel):
+  run_id: str
+  status: str
+  poll_url: str
+  progress_events: list[ItineraryPlanRunEventResponse]
+  created_at: str
+  updated_at: str
+
+class ItineraryPlanRunResponse(BaseModel):
+  run_id: str
+  original_prompt: str
+  model_name: str
+  save: bool
+  status: str
+  progress_events: list[ItineraryPlanRunEventResponse]
+  error_message: str | None = None
+  plan_id: str | None = None
+  trip_request_id: str | None = None
+  created_at: str
+  updated_at: str
+
 @app.get("/health")
 def health() -> dict[str, str]:
   settings = get_settings()
@@ -98,6 +131,75 @@ def chat(request: ChatRequest) -> ChatResponse:
     raise HTTPException(status_code=503, detail=str(exc)) from exc
   
   return ChatResponse(model=resolved_model, message=message)
+
+@app.post("/itinerary-plan-runs", response_model=ItineraryPlanRunStartResponse)
+def start_itinerary_plan_run(
+    request: ItineraryPlanRunRequest,
+    background_tasks: BackgroundTasks,
+) -> ItineraryPlanRunStartResponse:
+  settings = get_settings()
+  resolved_model = request.model or settings.default_model
+
+  try:
+    with get_session() as session:
+      run = create_itinerary_plan_run(
+        session,
+        user_slug=request.user,
+        prompt=request.prompt,
+        model_name=resolved_model,
+        save=request.save,
+      )
+  except SQLAlchemyError as exc:
+    raise HTTPException(status_code=503, detail="Database is unavailable.") from exc
+
+  background_tasks.add_task(
+    run_itinerary_plan_job,
+    run_id=run.run_id,
+    prompt=request.prompt,
+    user_slug=request.user,
+    model=resolved_model,
+    save=request.save,
+  )
+
+  return ItineraryPlanRunStartResponse(
+    run_id=run.run_id,
+    status=run.status,
+    poll_url=f"/itinerary-plan-runs/{run.run_id}?user={request.user}",
+    progress_events=[
+      ItineraryPlanRunEventResponse(**event)
+      for event in run.progress_events
+    ],
+    created_at=run.created_at,
+    updated_at=run.updated_at,
+  )
+
+@app.get("/itinerary-plan-runs/{run_id}", response_model=ItineraryPlanRunResponse)
+def get_itinerary_plan_run_status(run_id: str, user: str = "local") -> ItineraryPlanRunResponse:
+  try:
+    with get_session() as session:
+      run = get_itinerary_plan_run(session, user_slug=user, run_id=run_id)
+  except SQLAlchemyError as exc:
+    raise HTTPException(status_code=503, detail="Database is unavailable.") from exc
+
+  if run is None:
+    raise HTTPException(status_code=404, detail="Itinerary planning run not found.")
+
+  return ItineraryPlanRunResponse(
+    run_id=run.run_id,
+    original_prompt=run.original_prompt,
+    model_name=run.model_name,
+    save=run.save,
+    status=run.status,
+    progress_events=[
+      ItineraryPlanRunEventResponse(**event)
+      for event in run.progress_events
+    ],
+    error_message=run.error_message,
+    plan_id=run.plan_id,
+    trip_request_id=run.trip_request_id,
+    created_at=run.created_at,
+    updated_at=run.updated_at,
+  )
 
 @app.post("/itinerary-plans", response_model=ItineraryPlanCreateResponse)
 def create_itinerary_plan(request: ItineraryPlanRequest) -> ItineraryPlanCreateResponse:

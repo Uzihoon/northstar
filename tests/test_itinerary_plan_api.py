@@ -10,6 +10,7 @@ from northstar.memory.plan_store import (
   SavedItineraryPlan,
   StoredItineraryPlan,
 )
+from northstar.memory.plan_run_store import ItineraryPlanRunRecord
 from northstar.rag.schemas import RagContext, RagSource
 
 client = TestClient(app_module.app)
@@ -21,10 +22,14 @@ def test_itinerary_plan_endpoints_publish_response_models() -> None:
   create_schema = schema["paths"]["/itinerary-plans"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]
   list_schema = schema["paths"]["/itinerary-plans"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
   detail_schema = schema["paths"]["/itinerary-plans/{plan_id}"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+  run_start_schema = schema["paths"]["/itinerary-plan-runs"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]
+  run_detail_schema = schema["paths"]["/itinerary-plan-runs/{run_id}"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
 
   assert create_schema["$ref"].endswith("/ItineraryPlanCreateResponse")
   assert list_schema["$ref"].endswith("/ItineraryPlanListResponse")
   assert detail_schema["$ref"].endswith("/StoredItineraryPlanResponse")
+  assert run_start_schema["$ref"].endswith("/ItineraryPlanRunStartResponse")
+  assert run_detail_schema["$ref"].endswith("/ItineraryPlanRunResponse")
 
 
 class FakeSession:
@@ -119,6 +124,130 @@ def test_create_itinerary_plan_returns_saved_plan(monkeypatch) -> None:
   assert data["itinerary"]["destination"] == "Kyoto, Japan"
   assert data["itinerary_diagnostics"]["repair_attempted"] is True
   assert data["rag_context"]["sources"][0]["source_path"] == "rag_docs/japan/kyoto/cafes.md"
+
+
+def test_start_itinerary_plan_run_returns_queued_run(monkeypatch) -> None:
+  def fake_create_itinerary_plan_run(
+      session,
+      *,
+      user_slug,
+      prompt,
+      model_name,
+      save=True,
+  ):
+    assert user_slug == "local"
+    assert prompt == "Plan 2 quiet days in Kyoto."
+    assert model_name == "qwen3.6:27b"
+    assert save is True
+
+    return ItineraryPlanRunRecord(
+      run_id="run-123",
+      original_prompt=prompt,
+      model_name=model_name,
+      save=save,
+      status="queued",
+      progress_events=[
+        {
+          "status": "queued",
+          "message": "Itinerary planning run queued.",
+        }
+      ],
+      error_message=None,
+      plan_id=None,
+      trip_request_id=None,
+      created_at="2026-05-05T10:00:00",
+      updated_at="2026-05-05T10:00:00",
+    )
+
+  called = {}
+
+  def fake_run_itinerary_plan_job(**kwargs):
+    called.update(kwargs)
+
+  monkeypatch.setattr(app_module, "get_session", lambda: FakeSession())
+  monkeypatch.setattr(app_module, "create_itinerary_plan_run", fake_create_itinerary_plan_run)
+  monkeypatch.setattr(app_module, "run_itinerary_plan_job", fake_run_itinerary_plan_job)
+
+  response = client.post(
+    "/itinerary-plan-runs",
+    json={
+      "user": "local",
+      "prompt": "Plan 2 quiet days in Kyoto.",
+      "model": "qwen3.6:27b",
+      "save": True,
+    },
+  )
+
+  assert response.status_code == 200
+
+  data = response.json()
+  assert data["run_id"] == "run-123"
+  assert data["status"] == "queued"
+  assert data["poll_url"] == "/itinerary-plan-runs/run-123?user=local"
+  assert data["progress_events"][0]["message"] == "Itinerary planning run queued."
+  assert called == {
+    "run_id": "run-123",
+    "prompt": "Plan 2 quiet days in Kyoto.",
+    "user_slug": "local",
+    "model": "qwen3.6:27b",
+    "save": True,
+  }
+
+
+def test_get_itinerary_plan_run_returns_saved_run(monkeypatch) -> None:
+  def fake_get_itinerary_plan_run(session, *, user_slug, run_id):
+    assert user_slug == "local"
+    assert run_id == "run-123"
+
+    return ItineraryPlanRunRecord(
+      run_id="run-123",
+      original_prompt="Plan 2 quiet days in Kyoto.",
+      model_name="qwen3.6:27b",
+      save=True,
+      status="completed",
+      progress_events=[
+        {
+          "status": "queued",
+          "message": "Itinerary planning run queued.",
+        },
+        {
+          "status": "completed",
+          "message": "Itinerary plan completed.",
+        },
+      ],
+      error_message=None,
+      plan_id="plan-123",
+      trip_request_id="trip-123",
+      created_at="2026-05-05T10:00:00",
+      updated_at="2026-05-05T10:02:00",
+    )
+
+  monkeypatch.setattr(app_module, "get_session", lambda: FakeSession())
+  monkeypatch.setattr(app_module, "get_itinerary_plan_run", fake_get_itinerary_plan_run)
+
+  response = client.get("/itinerary-plan-runs/run-123?user=local")
+
+  assert response.status_code == 200
+
+  data = response.json()
+  assert data["run_id"] == "run-123"
+  assert data["status"] == "completed"
+  assert data["plan_id"] == "plan-123"
+  assert data["trip_request_id"] == "trip-123"
+  assert data["progress_events"][-1]["status"] == "completed"
+
+
+def test_get_itinerary_plan_run_returns_404_when_missing(monkeypatch) -> None:
+  def fake_get_itinerary_plan_run(session, *, user_slug, run_id):
+    return None
+
+  monkeypatch.setattr(app_module, "get_session", lambda: FakeSession())
+  monkeypatch.setattr(app_module, "get_itinerary_plan_run", fake_get_itinerary_plan_run)
+
+  response = client.get("/itinerary-plan-runs/missing-run?user=local")
+
+  assert response.status_code == 404
+  assert response.json()["detail"] == "Itinerary planning run not found."
 
 
 def test_list_itinerary_plans_returns_saved_plan_summaries(monkeypatch) -> None:
