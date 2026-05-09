@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from northstar.ollama_client import OllamaClient
@@ -71,6 +71,33 @@ def ingest_markdown_document(
 
   session.commit()
   return len(chunks)
+
+
+def delete_rag_chunks_for_source_path(*, session: Session, path: Path) -> int:
+  result = session.execute(
+    delete(RagChunkModel).where(RagChunkModel.source_path == str(path))
+  )
+  return int(result.rowcount or 0)
+
+
+def replace_markdown_document(
+    *,
+    session: Session,
+    path: Path,
+    metadata: dict[str, object],
+    client: OllamaClient,
+    embedding_model: str,
+    embedding_dimensions: int,
+) -> int:
+  delete_rag_chunks_for_source_path(session=session, path=path)
+  return ingest_markdown_document(
+    session=session,
+    path=path,
+    metadata=metadata,
+    client=client,
+    embedding_model=embedding_model,
+    embedding_dimensions=embedding_dimensions,
+  )
 
 
 def search_rag_chunks(
