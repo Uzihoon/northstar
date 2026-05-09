@@ -194,6 +194,93 @@ def test_start_itinerary_plan_run_returns_queued_run(monkeypatch) -> None:
   }
 
 
+def test_start_itinerary_plan_run_accepts_destination_id_and_additional_info(monkeypatch) -> None:
+  captured = {}
+
+  def fake_create_itinerary_plan_run(
+      session,
+      *,
+      user_slug,
+      prompt,
+      model_name,
+      save=True,
+  ):
+    captured["prompt"] = prompt
+
+    return ItineraryPlanRunRecord(
+      run_id="run-123",
+      original_prompt=prompt,
+      model_name=model_name,
+      save=save,
+      status="queued",
+      progress_events=[
+        {
+          "status": "queued",
+          "message": "Itinerary planning run queued.",
+        }
+      ],
+      error_message=None,
+      plan_id=None,
+      trip_request_id=None,
+      created_at="2026-05-05T10:00:00",
+      updated_at="2026-05-05T10:00:00",
+    )
+
+  called = {}
+
+  def fake_run_itinerary_plan_job(**kwargs):
+    called.update(kwargs)
+
+  monkeypatch.setattr(app_module, "get_session", lambda: FakeSession())
+  monkeypatch.setattr(app_module, "create_itinerary_plan_run", fake_create_itinerary_plan_run)
+  monkeypatch.setattr(app_module, "run_itinerary_plan_job", fake_run_itinerary_plan_job)
+
+  response = client.post(
+    "/itinerary-plan-runs",
+    json={
+      "user": "local",
+      "destination_ids": ["japan-kyoto"],
+      "additional_info": "2 days, relaxed pace, quiet cafes, vegetarian food",
+      "model": "qwen3.6:27b",
+      "save": True,
+    },
+  )
+
+  assert response.status_code == 200
+  assert "Plan a trip to Kyoto, Japan." in captured["prompt"]
+  assert "Selected destination id: japan-kyoto." in captured["prompt"]
+  assert "Additional information: 2 days, relaxed pace, quiet cafes, vegetarian food" in captured["prompt"]
+  assert called["prompt"] == captured["prompt"]
+
+
+def test_start_itinerary_plan_run_rejects_multiple_destination_ids() -> None:
+  response = client.post(
+    "/itinerary-plan-runs",
+    json={
+      "user": "local",
+      "destination_ids": ["japan-kyoto", "japan-tokyo"],
+      "additional_info": "7 days",
+    },
+  )
+
+  assert response.status_code == 400
+  assert response.json()["detail"] == "Multi-destination planning is not supported yet."
+
+
+def test_start_itinerary_plan_run_returns_404_for_unknown_destination_id() -> None:
+  response = client.post(
+    "/itinerary-plan-runs",
+    json={
+      "user": "local",
+      "destination_ids": ["missing-destination"],
+      "additional_info": "2 days",
+    },
+  )
+
+  assert response.status_code == 404
+  assert response.json()["detail"] == "Destination not found."
+
+
 def test_get_itinerary_plan_run_returns_saved_run(monkeypatch) -> None:
   def fake_get_itinerary_plan_run(session, *, user_slug, run_id):
     assert user_slug == "local"

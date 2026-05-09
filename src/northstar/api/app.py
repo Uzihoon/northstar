@@ -12,6 +12,8 @@ from northstar.agent.planner_service import generate_and_optionally_save_itinera
 from northstar.agent.profile_extract import PreferenceExtractionError
 from northstar.db import get_session
 from northstar.config import get_settings
+from northstar.destinations.catalog import get_destination, search_destinations
+from northstar.destinations.schemas import Destination
 from northstar.ollama_client import OllamaError, get_ollama_client
 from northstar.memory.plan_store import get_itinerary_plan, list_itinerary_plans
 from northstar.memory.plan_run_store import create_itinerary_plan_run, get_itinerary_plan_run
@@ -34,10 +36,12 @@ class ItineraryPlanRequest(BaseModel):
   save: bool = True
 
 class ItineraryPlanRunRequest(BaseModel):
-  prompt: str
+  prompt: str | None = None
   user: str = "local"
   model: str | None = None
   save: bool = True
+  destination_ids: list[str] = Field(default_factory=list)
+  additional_info: str | None = None
 
 class OnboardingTurnRequest(BaseModel):
   user: str = "local"
@@ -113,6 +117,44 @@ class OnboardingTurnResponse(BaseModel):
   is_complete: bool
   next_focus: str
 
+class DestinationResponse(Destination):
+  pass
+
+class DestinationListResponse(BaseModel):
+  destinations: list[DestinationResponse]
+
+def build_itinerary_run_prompt(request: ItineraryPlanRunRequest) -> str:
+  if request.destination_ids:
+    if len(request.destination_ids) > 1:
+      raise HTTPException(
+        status_code=400,
+        detail="Multi-destination planning is not supported yet.",
+      )
+
+    destination = get_destination(request.destination_ids[0])
+    if destination is None:
+      raise HTTPException(status_code=404, detail="Destination not found.")
+
+    prompt_parts = [
+      f"Plan a trip to {destination.city}, {destination.country}.",
+      f"Selected destination id: {destination.id}.",
+      f"Destination summary: {destination.summary}",
+      f"Destination vibes: {', '.join(destination.vibes)}.",
+    ]
+
+    if request.additional_info:
+      prompt_parts.append(f"Additional information: {request.additional_info}")
+
+    return "\n".join(prompt_parts)
+
+  if request.prompt:
+    return request.prompt
+
+  raise HTTPException(
+    status_code=422,
+    detail="Provide either prompt or destination_ids.",
+  )
+
 @app.get("/health")
 def health() -> dict[str, str]:
   settings = get_settings()
@@ -145,6 +187,34 @@ def chat(request: ChatRequest) -> ChatResponse:
     raise HTTPException(status_code=503, detail=str(exc)) from exc
   
   return ChatResponse(model=resolved_model, message=message)
+
+@app.get("/destinations", response_model=DestinationListResponse)
+def list_destinations(
+    q: str | None = None,
+    country: str | None = None,
+    vibe: str | None = None,
+    limit: int = 20,
+) -> DestinationListResponse:
+  return DestinationListResponse(
+    destinations=[
+      DestinationResponse.model_validate(destination.model_dump(mode="json"))
+      for destination in search_destinations(
+        q=q,
+        country=country,
+        vibe=vibe,
+        limit=limit,
+      )
+    ]
+  )
+
+@app.get("/destinations/{destination_id}", response_model=DestinationResponse)
+def get_destination_detail(destination_id: str) -> DestinationResponse:
+  destination = get_destination(destination_id)
+
+  if destination is None:
+    raise HTTPException(status_code=404, detail="Destination not found.")
+
+  return DestinationResponse.model_validate(destination.model_dump(mode="json"))
 
 @app.post("/onboarding/messages", response_model=OnboardingTurnResponse)
 def onboarding_messages(request: OnboardingTurnRequest) -> OnboardingTurnResponse:
@@ -181,13 +251,14 @@ def start_itinerary_plan_run(
 ) -> ItineraryPlanRunStartResponse:
   settings = get_settings()
   resolved_model = request.model or settings.default_model
+  prompt = build_itinerary_run_prompt(request)
 
   try:
     with get_session() as session:
       run = create_itinerary_plan_run(
         session,
         user_slug=request.user,
-        prompt=request.prompt,
+        prompt=prompt,
         model_name=resolved_model,
         save=request.save,
       )
@@ -197,7 +268,7 @@ def start_itinerary_plan_run(
   background_tasks.add_task(
     run_itinerary_plan_job,
     run_id=run.run_id,
-    prompt=request.prompt,
+    prompt=prompt,
     user_slug=request.user,
     model=resolved_model,
     save=request.save,
