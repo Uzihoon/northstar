@@ -5,7 +5,7 @@ Northstar is a local-first AI travel planner monorepo.
 ## Apps
 
 - `apps/api` - Python/FastAPI backend, Ollama agent, RAG, Postgres persistence, evals, and smoke scripts.
-- `apps/mobile` - Mobile app workspace placeholder.
+- `apps/mobile` - Expo React Native mobile app for onboarding, destination discovery, trip setup, and itinerary summaries.
 
 ## Backend Commands
 
@@ -18,6 +18,13 @@ uv run uvicorn northstar.api.app:app --reload
 uv run alembic upgrade head
 ```
 
-## Mobile
+## Mobile Commands
 
-The mobile app will live in `apps/mobile` and talk to the backend through the API contracts in `apps/api`.
+Run mobile commands from `apps/mobile`:
+
+```bash
+cd apps/mobile
+npm install
+cp .env.example .env
+npm run ios
+```
