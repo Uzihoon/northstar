@@ -14,7 +14,12 @@ from northstar.memory.profile_store import apply_preference_update, load_profile
 from northstar.agent.context import build_active_plan_context
 from northstar.agent.itinerary import ItineraryGenerationError, generate_itinerary_plan
 from northstar.agent.planner_service import generate_and_optionally_save_itinerary
-from northstar.memory.plan_store import get_itinerary_plan, list_itinerary_plans
+from northstar.memory.plan_store import (
+  get_itinerary_quality_report,
+  get_itinerary_plan,
+  get_rag_coverage_report,
+  list_itinerary_plans,
+)
 from northstar.evals.runner import run_eval_suite
 from northstar.memory.eval_store import get_eval_run, list_eval_runs, save_eval_run
 from northstar.rag.retriever import retrieve_travel_context
@@ -440,6 +445,59 @@ def eval_suite(
       indent=2,
     )
   )
+
+@app.command("eval-quality")
+def eval_quality(user: str = typer.Option("local", "--user")) -> None:
+  """Summarize saved itinerary quality warnings."""
+  try:
+    with get_session() as session:
+      report = get_itinerary_quality_report(session, user_slug=user)
+  except SQLAlchemyError as exc:
+    exit_with_database_error(exc)
+
+  typer.echo(f"plans_scanned: {report.total_plans}")
+  typer.echo(f"plans_with_warnings: {report.plans_with_warnings}")
+  typer.echo(f"total_issues: {report.total_issues}")
+
+  if not report.issue_counts:
+    typer.echo("No quality warnings found.")
+    return
+
+  typer.echo("")
+  typer.echo("warning_counts:")
+
+  for code, count in sorted(
+      report.issue_counts.items(),
+      key=lambda item: (-item[1], item[0]),
+  ):
+    typer.echo(f"{code}: {count}")
+
+@app.command("eval-rag-coverage")
+def eval_rag_coverage(user: str = typer.Option("local", "--user")) -> None:
+  """Summarize saved itinerary RAG source coverage."""
+  try:
+    with get_session() as session:
+      report = get_rag_coverage_report(session, user_slug=user)
+  except SQLAlchemyError as exc:
+    exit_with_database_error(exc)
+
+  typer.echo(f"plans_scanned: {report.total_plans}")
+  typer.echo(f"plans_with_rag: {report.plans_with_rag}")
+  typer.echo(f"plans_without_rag: {report.plans_without_rag}")
+  typer.echo(f"sources_used: {report.total_sources}")
+
+  if not report.source_counts:
+    typer.echo("No RAG sources found.")
+    return
+
+  typer.echo("")
+  typer.echo("source_counts:")
+
+  for source_path, count in sorted(
+      report.source_counts.items(),
+      key=lambda item: (-item[1], item[0]),
+  ):
+    typer.echo(f"{source_path}: {count}")
 
 @app.command("list-eval-runs")
 def list_eval_runs_command() -> None:

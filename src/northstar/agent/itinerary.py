@@ -166,12 +166,53 @@ def _has_food_intent(item: TimelineItem) -> bool:
     or any(phrase in description for phrase in food_description_phrases)
   )
 
+def _may_contain_unverified_real_venue_name(option: RecommendationOption) -> bool:
+  if option.source_notes:
+    return False
+
+  name = option.name.strip()
+  lowered_name = name.lower()
+
+  return (
+    "e.g." in lowered_name
+    or "for example" in lowered_name
+    or "(" in name and ")" in name
+  )
+
+def _add_option_quality_issues(
+    *,
+    issues: list[dict[str, str]],
+    options: list[RecommendationOption],
+    path: str,
+) -> None:
+  for option_index, option in enumerate(options):
+    if _may_contain_unverified_real_venue_name(option):
+      issues.append(
+        _quality_issue(
+          code="possible_unverified_real_venue_name",
+          path=f"{path}.options.{option_index}",
+          message="Recommendation option may contain an unverified real venue name without source_notes.",
+        )
+      )
+
 def evaluate_itinerary_quality(plan: ItineraryPlan) -> list[dict[str, str]]:
   issues: list[dict[str, str]] = []
+
+  _add_option_quality_issues(
+    issues=issues,
+    options=plan.accommodation_options,
+    path="accommodation_options",
+  )
 
   for day_index, day in enumerate(plan.days):
     for item_index, item in enumerate(day.timeline_items):
       path = f"days.{day_index}.timeline_items.{item_index}"
+
+      _add_option_quality_issues(
+        issues=issues,
+        options=item.options,
+        path=path,
+      )
 
       if _has_food_intent(item) and item.type not in {
         TimelineItemType.meal,

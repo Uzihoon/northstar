@@ -584,6 +584,13 @@ def test_evaluate_itinerary_quality_reports_soft_issues_without_rejecting_plan()
             "end_time": "19:00",
             "title": "Dinner",
             "description": "Enjoy dinner.",
+            "options": [
+              {
+                "name": "Downtown Bookstore (e.g., Maruzen)",
+                "category": "bookstore",
+                "why_it_fits": "It sounds like a real venue but is not source-backed.",
+              }
+            ],
           },
         ],
       }
@@ -603,6 +610,12 @@ def test_evaluate_itinerary_quality_reports_soft_issues_without_rejecting_plan()
     "code": "missing_meal_metadata",
     "path": "days.0.timeline_items.1",
     "message": "Meal item is missing dietary_fit, reservation_recommended.",
+  } in issues
+  assert {
+    "severity": "warning",
+    "code": "possible_unverified_real_venue_name",
+    "path": "days.0.timeline_items.1.options.0",
+    "message": "Recommendation option may contain an unverified real venue name without source_notes.",
   } in issues
 
 

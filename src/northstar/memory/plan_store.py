@@ -39,6 +39,21 @@ class StoredItineraryPlan:
   model_name: str
   created_at: str
 
+@dataclass(frozen=True)
+class ItineraryQualityReport:
+  total_plans: int
+  plans_with_warnings: int
+  total_issues: int
+  issue_counts: dict[str, int]
+
+@dataclass(frozen=True)
+class RagCoverageReport:
+  total_plans: int
+  plans_with_rag: int
+  plans_without_rag: int
+  total_sources: int
+  source_counts: dict[str, int]
+
 def hash_rag_note(text: str) -> str:
   digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
   return f"sha256:{digest}"
@@ -161,4 +176,93 @@ def get_itinerary_plan(
     itinerary_diagnostics=plan_row.itinerary_diagnostics,
     model_name=plan_row.model_name,
     created_at=plan_row.created_at.isoformat(),
+  )
+
+def get_itinerary_quality_report(
+    session: Session,
+    *,
+    user_slug: str,
+) -> ItineraryQualityReport:
+  user = get_or_create_user(session, user_slug=user_slug)
+
+  rows = session.scalars(
+    select(ItineraryPlanModel)
+    .join(TripRequestModel, ItineraryPlanModel.trip_request_id == TripRequestModel.id)
+    .where(TripRequestModel.user_id == user.id)
+  ).all()
+
+  issue_counts: dict[str, int] = {}
+  plans_with_warnings = 0
+  total_issues = 0
+
+  for row in rows:
+    diagnostics = row.itinerary_diagnostics or {}
+    quality_issues = diagnostics.get("quality_issues", [])
+
+    if not isinstance(quality_issues, list) or not quality_issues:
+      continue
+
+    plans_with_warnings += 1
+
+    for issue in quality_issues:
+      if not isinstance(issue, dict):
+        continue
+
+      code = issue.get("code")
+      if not isinstance(code, str) or not code:
+        code = "unknown"
+
+      total_issues += 1
+      issue_counts[code] = issue_counts.get(code, 0) + 1
+
+  return ItineraryQualityReport(
+    total_plans=len(rows),
+    plans_with_warnings=plans_with_warnings,
+    total_issues=total_issues,
+    issue_counts=issue_counts,
+  )
+
+def get_rag_coverage_report(
+    session: Session,
+    *,
+    user_slug: str,
+) -> RagCoverageReport:
+  user = get_or_create_user(session, user_slug=user_slug)
+
+  rows = session.scalars(
+    select(ItineraryPlanModel)
+    .join(TripRequestModel, ItineraryPlanModel.trip_request_id == TripRequestModel.id)
+    .where(TripRequestModel.user_id == user.id)
+  ).all()
+
+  source_counts: dict[str, int] = {}
+  plans_with_rag = 0
+  total_sources = 0
+
+  for row in rows:
+    rag_context = row.rag_context or {}
+    sources = rag_context.get("sources", [])
+
+    if not isinstance(sources, list) or not sources:
+      continue
+
+    plans_with_rag += 1
+
+    for source in sources:
+      if not isinstance(source, dict):
+        continue
+
+      source_path = source.get("source_path")
+      if not isinstance(source_path, str) or not source_path:
+        source_path = "unknown"
+
+      total_sources += 1
+      source_counts[source_path] = source_counts.get(source_path, 0) + 1
+
+  return RagCoverageReport(
+    total_plans=len(rows),
+    plans_with_rag=plans_with_rag,
+    plans_without_rag=len(rows) - plans_with_rag,
+    total_sources=total_sources,
+    source_counts=source_counts,
   )
