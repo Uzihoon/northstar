@@ -5,6 +5,7 @@ from pydantic import ValidationError
 from northstar.agent.itinerary import (
   ItineraryGenerationError,
   ItineraryPlan,
+  RecommendationOption,
   TimelineItem,
   generate_itinerary_plan,
 )
@@ -202,6 +203,73 @@ class TypeRepairingFakeOllamaClient:
       ],
     }
 
+class MixedBookstoreCafeRepairingFakeOllamaClient:
+  def __init__(self) -> None:
+    self.calls = 0
+
+  def structured_chat(self, *, messages, model, response_format):
+    self.calls += 1
+
+    if self.calls == 1:
+      return {
+        "title": "A plan with mixed bookstore cafe item",
+        "destination": "Kyoto, Japan",
+        "duration_days": 2,
+        "preferences_used": ["bookstores", "cafes"],
+        "assumptions": [],
+        "days": [
+          {
+            "day_number": 1,
+            "theme": "Downtown Kyoto",
+            "timeline_items": [
+              {
+                "type": "place",
+                "start_time": "15:00",
+                "end_time": "16:30",
+                "title": "Bookstore and Cafe Break",
+                "description": "Browse books and enjoy a quiet coffee break.",
+                "place_category": "bookstore and cafe",
+                "indoor_outdoor": "indoor",
+              }
+            ],
+          }
+        ],
+      }
+
+    return {
+      "title": "A repaired bookstore and cafe plan",
+      "destination": "Kyoto, Japan",
+      "duration_days": 2,
+      "preferences_used": ["bookstores", "cafes"],
+      "assumptions": [],
+      "days": [
+        {
+          "day_number": 1,
+          "theme": "Downtown Kyoto",
+          "timeline_items": [
+            {
+              "type": "place",
+              "start_time": "15:00",
+              "end_time": "15:45",
+              "title": "Bookstore Browsing",
+              "description": "Browse a quiet bookstore.",
+              "place_category": "bookstore",
+              "indoor_outdoor": "indoor",
+            },
+            {
+              "type": "cafe",
+              "start_time": "15:45",
+              "end_time": "16:30",
+              "title": "Cafe Break",
+              "description": "Enjoy a quiet coffee break.",
+              "dietary_fit": ["coffee"],
+              "reservation_recommended": False,
+            },
+          ],
+        }
+      ],
+    }
+
 class AlwaysInvalidFakeOllamaClient:
   def structured_chat(self, *, messages, model, response_format):
     return {
@@ -356,6 +424,56 @@ def test_meal_item_allows_missing_cuisine_when_dietary_metadata_exists() -> None
   assert item.dietary_fit == ["vegetarian"]
 
 
+def test_meal_item_accepts_restaurant_options() -> None:
+  item = TimelineItem(
+    type="meal",
+    start_time="18:00",
+    end_time="19:30",
+    title="Vegetarian dinner in Downtown Kyoto",
+    description="Choose one of these relaxed vegetarian-friendly dinner options.",
+    area="Downtown Kyoto",
+    dietary_fit=["vegetarian"],
+    reservation_recommended=True,
+    options=[
+      RecommendationOption(
+        name="Quiet vegetarian izakaya",
+        category="restaurant",
+        area="Downtown Kyoto",
+        why_it_fits="Vegetarian-friendly and calm enough for a relaxed evening.",
+        estimated_cost="medium",
+        reservation_recommended=True,
+        tradeoffs=["May need booking ahead."],
+      )
+    ],
+  )
+
+  assert item.options[0].category == "restaurant"
+  assert item.options[0].reservation_recommended is True
+
+
+def test_itinerary_plan_accepts_accommodation_options() -> None:
+  plan = ItineraryPlan(
+    title="A relaxed Kyoto plan",
+    destination="Kyoto, Japan",
+    duration_days=2,
+    preferences_used=["quiet neighborhoods"],
+    assumptions=[],
+    accommodation_options=[
+      RecommendationOption(
+        name="Quiet ryokan-style stay in Higashiyama",
+        category="accommodation",
+        area="Higashiyama",
+        why_it_fits="Calm and walkable, with easy access to temples.",
+        estimated_cost="medium-high",
+        tradeoffs=["Less nightlife nearby."],
+      )
+    ],
+    days=[],
+  )
+
+  assert plan.accommodation_options[0].category == "accommodation"
+
+
 def test_cafe_item_requires_reservation_recommendation() -> None:
   with pytest.raises(ValidationError):
     TimelineItem(
@@ -466,6 +584,28 @@ def test_generate_itinerary_plan_repairs_misclassified_meal() -> None:
   assert plan.diagnostics.repair_attempted is True
   assert plan.itinerary.days[0].timeline_items[0].type == "meal"
   assert plan.itinerary.days[0].timeline_items[0].dietary_fit == ["vegetarian"]
+
+
+def test_generate_itinerary_plan_repairs_mixed_bookstore_and_cafe_item() -> None:
+  client = MixedBookstoreCafeRepairingFakeOllamaClient()
+
+  plan = generate_itinerary_plan(
+    context=ActivePlanContext(
+      destination_city="Kyoto",
+      country="Japan",
+      duration_days=2,
+      interests=["bookstores", "cafes"],
+    ),
+    model="qwen3.6:27b",
+    client=client,
+  )
+
+  items = plan.itinerary.days[0].timeline_items
+
+  assert client.calls == 2
+  assert [item.type for item in items] == ["place", "cafe"]
+  assert items[0].title == "Bookstore Browsing"
+  assert items[1].title == "Cafe Break"
 
 
 def test_generate_itinerary_plan_raises_when_repair_fails() -> None:

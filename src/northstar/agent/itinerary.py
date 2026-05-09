@@ -25,6 +25,16 @@ class TimeSource(str, Enum):
   user_provided = "user_provided"
   maps_api = "maps_api"
 
+class RecommendationOption(BaseModel):
+  name: str
+  category: str
+  area: str | None = None
+  why_it_fits: str
+  estimated_cost: str | None = None
+  reservation_recommended: bool | None = None
+  tradeoffs: list[str] = Field(default_factory=list)
+  source_notes: list[str] = Field(default_factory=list)
+
 class TimelineItem(BaseModel):
   type: TimelineItemType
   start_time: str = Field(description="Start time in HH:MM 24-hour format.")
@@ -49,6 +59,7 @@ class TimelineItem(BaseModel):
   place_category: str | None = None
   indoor_outdoor: str | None = None
   estimated_cost: str | None = None
+  options: list[RecommendationOption] = Field(default_factory=list)
 
   @model_validator(mode="after")
   def validate_type_specific_metadata(self) -> "TimelineItem":
@@ -171,6 +182,7 @@ class ItineraryPlan(BaseModel):
   duration_days: int
   preferences_used: list[str] = Field(default_factory=list)
   assumptions: list[str] = Field(default_factory=list)
+  accommodation_options: list[RecommendationOption] = Field(default_factory=list)
   days: list[ItineraryDay] = Field(default_factory=list)
 
 @dataclass(frozen=True)
@@ -223,10 +235,16 @@ Rules:
 - Use meal or cafe items for food and drink stops.
 - Every meal item must include dietary_fit and reservation_recommended.
 - Every meal item should include cuisine when known.
+- Meal items should include 2-3 restaurant options when useful. Put those choices in options.
+- Restaurant options should include name, category="restaurant", area, why_it_fits, estimated_cost, reservation_recommended, and tradeoffs when known.
 - Every cafe item should include dietary_fit when food_preferences apply.
+- Cafe items may include options, but this is less important than restaurant meal options.
+- Add 2-3 accommodation options at the itinerary top level when possible.
+- Accommodation options should use category="accommodation" and include area, why_it_fits, estimated_cost, and tradeoffs when known.
 - Food, cafe, coffee, restaurant, lunch, or dinner items must use type=meal or type=cafe.
 - Transport items may mention food/cafe locations only when the item is movement to that location.
 - Do not use break_time, free_time, note, or place for meals, cafes, coffee stops, or restaurants.
+- Do not combine bookstores/shops and cafes into one place item. Split them into a place item for browsing/shopping and a cafe item for coffee or cafe breaks.
 - Use place items for museums, sightseeing, neighborhoods, parks, shops, and attractions.
 - Every place item should include place_category and indoor_outdoor.
 - Use place or free_time for scenic walks, browsing, wandering, or neighborhood exploration.
@@ -246,10 +264,13 @@ Rules:
 - Do not add new facts unless required to satisfy validation.
 - For transport items, include transport_mode, from_location, to_location, and duration_minutes.
 - For meal items, include dietary_fit and reservation_recommended. Include cuisine when known.
+- Preserve or add meal options when they are already present or easy to infer from the original payload.
 - For cafe items, include reservation_recommended.
+- Preserve accommodation_options when present.
 - Food, cafe, coffee, restaurant, lunch, or dinner items must use type=meal or type=cafe.
 - Transport items may mention food/cafe locations only when the item is movement to that location.
 - Do not use break_time, free_time, note, or place for meals, cafes, coffee stops, or restaurants.
+- If an item combines a bookstore/shop with a cafe, split it into separate place and cafe timeline items with adjusted times.
 - For place items, include place_category and indoor_outdoor.
 """.strip()
 
