@@ -1,10 +1,12 @@
 from typing import Any
+from datetime import date
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError
 
 from northstar.agent.extract import TripExtractionError
+from northstar.agent.schemas import BudgetLevel, Pace
 from northstar.agent.itinerary import ItineraryGenerationError
 from northstar.agent.onboarding import OnboardingMessage, run_onboarding_turn
 from northstar.agent.plan_run_service import run_itinerary_plan_job
@@ -15,7 +17,12 @@ from northstar.config import get_settings
 from northstar.destinations.catalog import get_destination, search_destinations
 from northstar.destinations.schemas import Destination
 from northstar.ollama_client import OllamaError, get_ollama_client
-from northstar.memory.plan_store import get_itinerary_plan, list_itinerary_plans
+from northstar.memory.plan_store import (
+  get_itinerary_quality_report,
+  get_itinerary_plan,
+  get_rag_coverage_report,
+  list_itinerary_plans,
+)
 from northstar.memory.plan_run_store import create_itinerary_plan_run, get_itinerary_plan_run
 from northstar.rag.retriever import retrieve_travel_context
 
@@ -41,6 +48,12 @@ class ItineraryPlanRunRequest(BaseModel):
   model: str | None = None
   save: bool = True
   destination_ids: list[str] = Field(default_factory=list)
+  start_date: date | None = None
+  end_date: date | None = None
+  budget_level: BudgetLevel | None = None
+  pace: Pace | None = None
+  interests: list[str] = Field(default_factory=list)
+  food_preferences: list[str] = Field(default_factory=list)
   additional_info: str | None = None
 
 class OnboardingTurnRequest(BaseModel):
@@ -164,7 +177,26 @@ class DestinationResponse(Destination):
 class DestinationListResponse(BaseModel):
   destinations: list[DestinationResponse]
 
+class QualityEvalReportResponse(BaseModel):
+  plans_scanned: int
+  plans_with_warnings: int
+  total_issues: int
+  issue_counts: dict[str, int]
+
+class RagCoverageEvalReportResponse(BaseModel):
+  plans_scanned: int
+  plans_with_rag: int
+  plans_without_rag: int
+  sources_used: int
+  source_counts: dict[str, int]
+
 def build_itinerary_run_prompt(request: ItineraryPlanRunRequest) -> str:
+  if request.start_date and request.end_date and request.end_date < request.start_date:
+    raise HTTPException(
+      status_code=422,
+      detail="end_date must be on or after start_date.",
+    )
+
   if request.destination_ids:
     if len(request.destination_ids) > 1:
       raise HTTPException(
@@ -182,6 +214,28 @@ def build_itinerary_run_prompt(request: ItineraryPlanRunRequest) -> str:
       f"Destination summary: {destination.summary}",
       f"Destination vibes: {', '.join(destination.vibes)}.",
     ]
+
+    if request.start_date:
+      prompt_parts.append(f"Start date: {request.start_date.isoformat()}.")
+
+    if request.end_date:
+      prompt_parts.append(f"End date: {request.end_date.isoformat()}.")
+
+    if request.start_date and request.end_date:
+      duration_days = (request.end_date - request.start_date).days + 1
+      prompt_parts.append(f"Duration: {duration_days} days.")
+
+    if request.budget_level:
+      prompt_parts.append(f"Budget level: {request.budget_level.value}.")
+
+    if request.pace:
+      prompt_parts.append(f"Pace: {request.pace.value}.")
+
+    if request.interests:
+      prompt_parts.append(f"Interests: {', '.join(request.interests)}.")
+
+    if request.food_preferences:
+      prompt_parts.append(f"Food preferences: {', '.join(request.food_preferences)}.")
 
     if request.additional_info:
       prompt_parts.append(f"Additional information: {request.additional_info}")
@@ -378,6 +432,37 @@ def get_destination_detail(destination_id: str) -> DestinationResponse:
     raise HTTPException(status_code=404, detail="Destination not found.")
 
   return DestinationResponse.model_validate(destination.model_dump(mode="json"))
+
+@app.get("/admin/evals/quality", response_model=QualityEvalReportResponse)
+def get_quality_eval_report(user: str = "local") -> QualityEvalReportResponse:
+  try:
+    with get_session() as session:
+      report = get_itinerary_quality_report(session, user_slug=user)
+  except SQLAlchemyError as exc:
+    raise HTTPException(status_code=503, detail="Database is unavailable.") from exc
+
+  return QualityEvalReportResponse(
+    plans_scanned=report.total_plans,
+    plans_with_warnings=report.plans_with_warnings,
+    total_issues=report.total_issues,
+    issue_counts=report.issue_counts,
+  )
+
+@app.get("/admin/evals/rag-coverage", response_model=RagCoverageEvalReportResponse)
+def get_rag_coverage_eval_report(user: str = "local") -> RagCoverageEvalReportResponse:
+  try:
+    with get_session() as session:
+      report = get_rag_coverage_report(session, user_slug=user)
+  except SQLAlchemyError as exc:
+    raise HTTPException(status_code=503, detail="Database is unavailable.") from exc
+
+  return RagCoverageEvalReportResponse(
+    plans_scanned=report.total_plans,
+    plans_with_rag=report.plans_with_rag,
+    plans_without_rag=report.plans_without_rag,
+    sources_used=report.total_sources,
+    source_counts=report.source_counts,
+  )
 
 @app.post("/onboarding/messages", response_model=OnboardingTurnResponse)
 def onboarding_messages(request: OnboardingTurnRequest) -> OnboardingTurnResponse:

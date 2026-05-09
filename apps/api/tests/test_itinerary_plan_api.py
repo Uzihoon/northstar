@@ -6,7 +6,9 @@ from northstar.agent.itinerary import ItineraryGenerationDiagnostics, ItineraryP
 from northstar.agent.planner_service import GeneratedItineraryResult
 from northstar.agent.schemas import TripRequest
 from northstar.memory.plan_store import (
+  ItineraryQualityReport,
   ItineraryPlanSummary,
+  RagCoverageReport,
   SavedItineraryPlan,
   StoredItineraryPlan,
 )
@@ -19,6 +21,8 @@ client = TestClient(app_module.app)
 def test_itinerary_plan_endpoints_publish_response_models() -> None:
   schema = app_module.app.openapi()
 
+  quality_schema = schema["paths"]["/admin/evals/quality"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+  rag_coverage_schema = schema["paths"]["/admin/evals/rag-coverage"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
   create_schema = schema["paths"]["/itinerary-plans"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]
   list_schema = schema["paths"]["/itinerary-plans"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
   detail_schema = schema["paths"]["/itinerary-plans/{plan_id}"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
@@ -26,6 +30,8 @@ def test_itinerary_plan_endpoints_publish_response_models() -> None:
   run_start_schema = schema["paths"]["/itinerary-plan-runs"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]
   run_detail_schema = schema["paths"]["/itinerary-plan-runs/{run_id}"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
 
+  assert quality_schema["$ref"].endswith("/QualityEvalReportResponse")
+  assert rag_coverage_schema["$ref"].endswith("/RagCoverageEvalReportResponse")
   assert create_schema["$ref"].endswith("/ItineraryPlanCreateResponse")
   assert list_schema["$ref"].endswith("/ItineraryPlanListResponse")
   assert detail_schema["$ref"].endswith("/StoredItineraryPlanResponse")
@@ -126,6 +132,66 @@ def test_create_itinerary_plan_returns_saved_plan(monkeypatch) -> None:
   assert data["itinerary"]["destination"] == "Kyoto, Japan"
   assert data["itinerary_diagnostics"]["repair_attempted"] is True
   assert data["rag_context"]["sources"][0]["source_path"] == "rag_docs/japan/kyoto/cafes.md"
+
+
+def test_get_quality_eval_report_returns_warning_counts(monkeypatch) -> None:
+  def fake_get_itinerary_quality_report(session, *, user_slug):
+    assert user_slug == "local"
+
+    return ItineraryQualityReport(
+      total_plans=13,
+      plans_with_warnings=2,
+      total_issues=4,
+      issue_counts={"possible_misclassified_food_item": 4},
+    )
+
+  monkeypatch.setattr(app_module, "get_session", lambda: FakeSession())
+  monkeypatch.setattr(
+    app_module,
+    "get_itinerary_quality_report",
+    fake_get_itinerary_quality_report,
+  )
+
+  response = client.get("/admin/evals/quality?user=local")
+
+  assert response.status_code == 200
+  assert response.json() == {
+    "plans_scanned": 13,
+    "plans_with_warnings": 2,
+    "total_issues": 4,
+    "issue_counts": {"possible_misclassified_food_item": 4},
+  }
+
+
+def test_get_rag_coverage_eval_report_returns_source_counts(monkeypatch) -> None:
+  def fake_get_rag_coverage_report(session, *, user_slug):
+    assert user_slug == "local"
+
+    return RagCoverageReport(
+      total_plans=13,
+      plans_with_rag=12,
+      plans_without_rag=1,
+      total_sources=24,
+      source_counts={"rag_docs/japan/kyoto/cafes.md": 24},
+    )
+
+  monkeypatch.setattr(app_module, "get_session", lambda: FakeSession())
+  monkeypatch.setattr(
+    app_module,
+    "get_rag_coverage_report",
+    fake_get_rag_coverage_report,
+  )
+
+  response = client.get("/admin/evals/rag-coverage?user=local")
+
+  assert response.status_code == 200
+  assert response.json() == {
+    "plans_scanned": 13,
+    "plans_with_rag": 12,
+    "plans_without_rag": 1,
+    "sources_used": 24,
+    "source_counts": {"rag_docs/japan/kyoto/cafes.md": 24},
+  }
 
 
 def test_start_itinerary_plan_run_returns_queued_run(monkeypatch) -> None:
@@ -242,7 +308,13 @@ def test_start_itinerary_plan_run_accepts_destination_id_and_additional_info(mon
     json={
       "user": "local",
       "destination_ids": ["japan-kyoto"],
-      "additional_info": "2 days, relaxed pace, quiet cafes, vegetarian food",
+      "start_date": "2026-06-12",
+      "end_date": "2026-06-14",
+      "budget_level": "midrange",
+      "pace": "relaxed",
+      "interests": ["quiet cafes", "bookstores"],
+      "food_preferences": ["vegetarian"],
+      "additional_info": "I want a calm trip",
       "model": "qwen3.6:27b",
       "save": True,
     },
@@ -251,8 +323,30 @@ def test_start_itinerary_plan_run_accepts_destination_id_and_additional_info(mon
   assert response.status_code == 200
   assert "Plan a trip to Kyoto, Japan." in captured["prompt"]
   assert "Selected destination id: japan-kyoto." in captured["prompt"]
-  assert "Additional information: 2 days, relaxed pace, quiet cafes, vegetarian food" in captured["prompt"]
+  assert "Start date: 2026-06-12." in captured["prompt"]
+  assert "End date: 2026-06-14." in captured["prompt"]
+  assert "Duration: 3 days." in captured["prompt"]
+  assert "Budget level: midrange." in captured["prompt"]
+  assert "Pace: relaxed." in captured["prompt"]
+  assert "Interests: quiet cafes, bookstores." in captured["prompt"]
+  assert "Food preferences: vegetarian." in captured["prompt"]
+  assert "Additional information: I want a calm trip" in captured["prompt"]
   assert called["prompt"] == captured["prompt"]
+
+
+def test_start_itinerary_plan_run_rejects_end_date_before_start_date() -> None:
+  response = client.post(
+    "/itinerary-plan-runs",
+    json={
+      "user": "local",
+      "destination_ids": ["japan-kyoto"],
+      "start_date": "2026-06-14",
+      "end_date": "2026-06-12",
+    },
+  )
+
+  assert response.status_code == 422
+  assert response.json()["detail"] == "end_date must be on or after start_date."
 
 
 def test_start_itinerary_plan_run_rejects_multiple_destination_ids() -> None:
