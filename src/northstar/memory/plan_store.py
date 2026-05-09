@@ -1,5 +1,5 @@
 import hashlib
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -89,7 +89,7 @@ def save_itinerary_plan(
     model_name=model_name,
     itinerary=itinerary.model_dump(mode="json"),
     rag_context=compact_rag_context_for_storage(rag_context),
-    itinerary_diagnostics=itinerary_diagnostics.__dict__ if itinerary_diagnostics else None,
+    itinerary_diagnostics=asdict(itinerary_diagnostics) if itinerary_diagnostics else None,
   )
   session.add(plan_row)
   session.commit()

@@ -22,12 +22,14 @@ def test_itinerary_plan_endpoints_publish_response_models() -> None:
   create_schema = schema["paths"]["/itinerary-plans"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]
   list_schema = schema["paths"]["/itinerary-plans"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
   detail_schema = schema["paths"]["/itinerary-plans/{plan_id}"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+  summary_schema = schema["paths"]["/itinerary-plans/{plan_id}/summary"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
   run_start_schema = schema["paths"]["/itinerary-plan-runs"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]
   run_detail_schema = schema["paths"]["/itinerary-plan-runs/{run_id}"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
 
   assert create_schema["$ref"].endswith("/ItineraryPlanCreateResponse")
   assert list_schema["$ref"].endswith("/ItineraryPlanListResponse")
   assert detail_schema["$ref"].endswith("/StoredItineraryPlanResponse")
+  assert summary_schema["$ref"].endswith("/MobileItineraryPlanSummaryResponse")
   assert run_start_schema["$ref"].endswith("/ItineraryPlanRunStartResponse")
   assert run_detail_schema["$ref"].endswith("/ItineraryPlanRunResponse")
 
@@ -429,6 +431,113 @@ def test_get_itinerary_plan_returns_saved_plan_with_rag_context(monkeypatch) -> 
   assert data["rag_context"]["sources"][0]["source_path"] == "rag_docs/japan/kyoto/cafes.md"
   assert data["rag_context"]["note_hashes"] == ["sha256:test"]
   assert data["itinerary_diagnostics"]["repair_attempted"] is True
+
+
+def test_get_itinerary_plan_summary_returns_mobile_ready_cards(monkeypatch) -> None:
+  def fake_get_itinerary_plan(session, *, user_slug, plan_id):
+    assert user_slug == "local"
+    assert plan_id == "plan-123"
+
+    return StoredItineraryPlan(
+      plan_id="plan-123",
+      trip_request_id="trip-123",
+      original_prompt="Plan 2 quiet days in Kyoto.",
+      trip_request={
+        "destination_city": "Kyoto",
+        "country": "Japan",
+        "duration_days": 2,
+      },
+      active_context={
+        "destination_city": "Kyoto",
+        "country": "Japan",
+        "duration_days": 2,
+        "interests": ["quiet cafes", "bookstores"],
+        "food_preferences": ["vegetarian"],
+      },
+      itinerary={
+        "title": "A relaxed Kyoto plan",
+        "destination": "Kyoto, Japan",
+        "duration_days": 2,
+        "preferences_used": ["quiet cafes"],
+        "assumptions": [],
+        "days": [
+          {
+            "day_number": 1,
+            "date": None,
+            "theme": "Downtown Kyoto",
+            "timeline_items": [
+              {
+                "type": "place",
+                "start_time": "12:00",
+                "end_time": "14:30",
+                "title": "Bookstore and Quiet Cafe Break",
+                "description": "Browse books and enjoy a quiet coffee break.",
+                "area": "Downtown Kyoto",
+                "place_category": "Bookstore/Cafe",
+                "dietary_fit": [],
+                "preference_match": ["quiet cafes"],
+                "options": [
+                  {
+                    "name": "Quiet Cafe near Bookstore",
+                    "category": "cafe",
+                    "area": "Downtown Kyoto",
+                    "why_it_fits": "Good calm coffee break.",
+                    "estimated_cost": "$$",
+                    "reservation_recommended": False,
+                    "tradeoffs": ["Can be busy on weekends."],
+                    "source_notes": [],
+                  }
+                ],
+              }
+            ],
+          }
+        ],
+      },
+      rag_context=None,
+      itinerary_diagnostics={
+        "repair_attempted": False,
+        "repair_succeeded": False,
+        "initial_validation_error": None,
+        "quality_status": "warning",
+        "quality_issues": [
+          {
+            "severity": "warning",
+            "code": "possible_misclassified_food_item",
+            "path": "days.0.timeline_items.0",
+            "message": "Small model issue.",
+          }
+        ],
+      },
+      model_name="qwen3.6:27b",
+      created_at="2026-05-05T10:00:00",
+    )
+
+  monkeypatch.setattr(app_module, "get_session", lambda: FakeSession())
+  monkeypatch.setattr(app_module, "get_itinerary_plan", fake_get_itinerary_plan)
+
+  response = client.get("/itinerary-plans/plan-123/summary?user=local")
+
+  assert response.status_code == 200
+
+  data = response.json()
+  assert data["plan_id"] == "plan-123"
+  assert data["title"] == "A relaxed Kyoto plan"
+  assert data["status"] == "ready_with_warnings"
+  assert data["highlights"] == ["quiet cafes"]
+  assert data["quality"] == {
+    "status": "warning",
+    "visible_to_user": False,
+    "issue_count": 1,
+  }
+  assert data["days"][0]["cards"][0]["kind"] == "place"
+  assert data["days"][0]["cards"][0]["time"] == "12:00-14:30"
+  assert data["days"][0]["cards"][0]["tags"] == [
+    "place",
+    "Bookstore",
+    "Cafe",
+    "quiet cafes",
+  ]
+  assert data["days"][0]["cards"][0]["options"][0]["name"] == "Quiet Cafe near Bookstore"
 
 
 def test_get_itinerary_plan_returns_404_when_missing(monkeypatch) -> None:

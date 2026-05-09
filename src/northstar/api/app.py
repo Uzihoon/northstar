@@ -52,6 +52,8 @@ class ItineraryDiagnosticsResponse(BaseModel):
   repair_attempted: bool
   repair_succeeded: bool
   initial_validation_error: str | None = None
+  quality_status: str = "ok"
+  quality_issues: list[dict[str, str]] = Field(default_factory=list)
 
 class ItineraryPlanCreateResponse(BaseModel):
   plan_id: str | None = None
@@ -84,6 +86,45 @@ class StoredItineraryPlanResponse(BaseModel):
   rag_context: dict[str, Any] | None = None
   itinerary_diagnostics: ItineraryDiagnosticsResponse | None = None
   created_at: str
+
+class MobilePlanOptionResponse(BaseModel):
+  name: str
+  category: str
+  area: str | None = None
+  why_it_fits: str
+  estimated_cost: str | None = None
+  reservation_recommended: bool | None = None
+  tradeoffs: list[str] = Field(default_factory=list)
+
+class MobilePlanCardResponse(BaseModel):
+  kind: str
+  time: str
+  title: str
+  description: str
+  area: str | None = None
+  tags: list[str] = Field(default_factory=list)
+  options: list[MobilePlanOptionResponse] = Field(default_factory=list)
+
+class MobilePlanDayResponse(BaseModel):
+  day_number: int
+  date: str | None = None
+  theme: str
+  cards: list[MobilePlanCardResponse] = Field(default_factory=list)
+
+class MobilePlanQualityResponse(BaseModel):
+  status: str
+  visible_to_user: bool = False
+  issue_count: int = 0
+
+class MobileItineraryPlanSummaryResponse(BaseModel):
+  plan_id: str
+  title: str
+  destination: str
+  duration_days: int
+  status: str
+  highlights: list[str] = Field(default_factory=list)
+  days: list[MobilePlanDayResponse] = Field(default_factory=list)
+  quality: MobilePlanQualityResponse
 
 class ItineraryPlanRunEventResponse(BaseModel):
   status: str
@@ -153,6 +194,128 @@ def build_itinerary_run_prompt(request: ItineraryPlanRunRequest) -> str:
   raise HTTPException(
     status_code=422,
     detail="Provide either prompt or destination_ids.",
+  )
+
+def _dedupe_strings(values: list[Any], limit: int | None = None) -> list[str]:
+  seen: set[str] = set()
+  results: list[str] = []
+
+  for value in values:
+    if not isinstance(value, str):
+      continue
+
+    normalized = value.strip()
+    if not normalized or normalized in seen:
+      continue
+
+    seen.add(normalized)
+    results.append(normalized)
+
+    if limit is not None and len(results) >= limit:
+      break
+
+  return results
+
+def _split_category_tags(value: Any) -> list[str]:
+  if not isinstance(value, str):
+    return []
+
+  return [
+    part.strip()
+    for part in value.replace("&", "/").split("/")
+    if part.strip()
+  ]
+
+def _build_mobile_card(item: dict[str, Any]) -> MobilePlanCardResponse:
+  kind = str(item.get("type") or "activity")
+  start_time = str(item.get("start_time") or "")
+  end_time = str(item.get("end_time") or "")
+  time = f"{start_time}-{end_time}".strip("-")
+  raw_options = item.get("options") if isinstance(item.get("options"), list) else []
+
+  tags = _dedupe_strings(
+    [
+      kind,
+      *_split_category_tags(item.get("place_category")),
+      *(item.get("dietary_fit") if isinstance(item.get("dietary_fit"), list) else []),
+      *(item.get("preference_match") if isinstance(item.get("preference_match"), list) else []),
+    ]
+  )
+
+  return MobilePlanCardResponse(
+    kind=kind,
+    time=time,
+    title=str(item.get("title") or ""),
+    description=str(item.get("description") or ""),
+    area=item.get("area") if isinstance(item.get("area"), str) else None,
+    tags=tags,
+    options=[
+      MobilePlanOptionResponse(
+        name=str(option.get("name") or ""),
+        category=str(option.get("category") or "option"),
+        area=option.get("area") if isinstance(option.get("area"), str) else None,
+        why_it_fits=str(option.get("why_it_fits") or ""),
+        estimated_cost=option.get("estimated_cost") if isinstance(option.get("estimated_cost"), str) else None,
+        reservation_recommended=option.get("reservation_recommended") if isinstance(option.get("reservation_recommended"), bool) else None,
+        tradeoffs=[
+          str(tradeoff)
+          for tradeoff in option.get("tradeoffs", [])
+          if isinstance(tradeoff, str)
+        ],
+      )
+      for option in raw_options
+      if isinstance(option, dict)
+    ],
+  )
+
+def _build_mobile_plan_summary(plan) -> MobileItineraryPlanSummaryResponse:
+  itinerary = plan.itinerary or {}
+  diagnostics = plan.itinerary_diagnostics or {}
+  quality_status = str(diagnostics.get("quality_status") or "ok")
+  quality_issues = diagnostics.get("quality_issues", [])
+  issue_count = len(quality_issues) if isinstance(quality_issues, list) else 0
+  raw_days = itinerary.get("days") if isinstance(itinerary.get("days"), list) else []
+  active_context = plan.active_context or {}
+  highlights = _dedupe_strings(
+    itinerary.get("preferences_used") if isinstance(itinerary.get("preferences_used"), list) else [],
+    limit=6,
+  )
+
+  if not highlights:
+    highlights = _dedupe_strings(
+      [
+        *(active_context.get("interests") if isinstance(active_context.get("interests"), list) else []),
+        *(active_context.get("food_preferences") if isinstance(active_context.get("food_preferences"), list) else []),
+      ],
+      limit=6,
+    )
+
+  return MobileItineraryPlanSummaryResponse(
+    plan_id=plan.plan_id,
+    title=str(itinerary.get("title") or ""),
+    destination=str(itinerary.get("destination") or ""),
+    duration_days=int(itinerary.get("duration_days") or 0),
+    status="ready_with_warnings" if quality_status == "warning" else "ready",
+    highlights=highlights,
+    days=[
+      MobilePlanDayResponse(
+        day_number=int(day.get("day_number") or day_index + 1),
+        date=day.get("date") if isinstance(day.get("date"), str) else None,
+        theme=str(day.get("theme") or ""),
+        cards=[
+          _build_mobile_card(item)
+          for item in day.get("timeline_items", [])
+          if isinstance(item, dict)
+        ],
+      )
+      for day_index, day in enumerate(raw_days)
+      if isinstance(day, dict)
+    ],
+    quality=MobilePlanQualityResponse(
+      status=quality_status,
+      visible_to_user=False,
+      issue_count=issue_count,
+    ),
   )
 
 @app.get("/health")
@@ -357,6 +520,8 @@ def create_itinerary_plan(request: ItineraryPlanRequest) -> ItineraryPlanCreateR
       repair_attempted=result.itinerary_diagnostics.repair_attempted,
       repair_succeeded=result.itinerary_diagnostics.repair_succeeded,
       initial_validation_error=result.itinerary_diagnostics.initial_validation_error,
+      quality_status=result.itinerary_diagnostics.quality_status,
+      quality_issues=result.itinerary_diagnostics.quality_issues,
     ),
   )
 
@@ -381,6 +546,22 @@ def list_saved_itinerary_plans(user: str = "local") -> ItineraryPlanListResponse
       for plan in plans
     ],
   )
+
+@app.get("/itinerary-plans/{plan_id}/summary", response_model=MobileItineraryPlanSummaryResponse)
+def get_saved_itinerary_plan_summary(
+    plan_id: str,
+    user: str = "local",
+) -> MobileItineraryPlanSummaryResponse:
+  try:
+    with get_session() as session:
+      plan = get_itinerary_plan(session, user_slug=user, plan_id=plan_id)
+  except SQLAlchemyError as exc:
+    raise HTTPException(status_code=503, detail="Database is unavailable.") from exc
+
+  if plan is None:
+    raise HTTPException(status_code=404, detail="Itinerary plan not found.")
+
+  return _build_mobile_plan_summary(plan)
 
 @app.get("/itinerary-plans/{plan_id}", response_model=StoredItineraryPlanResponse)
 def get_saved_itinerary_plan(plan_id: str, user: str = "local") -> StoredItineraryPlanResponse:

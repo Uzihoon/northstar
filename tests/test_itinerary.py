@@ -7,6 +7,7 @@ from northstar.agent.itinerary import (
   ItineraryPlan,
   RecommendationOption,
   TimelineItem,
+  evaluate_itinerary_quality,
   generate_itinerary_plan,
 )
 from northstar.rag.schemas import RagContext, RagSource
@@ -94,7 +95,7 @@ class RepairingFakeOllamaClient:
 
     if self.calls == 1:
       return {
-        "title": "A plan with incomplete transport",
+        "title": "A plan with malformed transport",
         "destination": "Kyoto, Japan",
         "duration_days": 2,
         "preferences_used": ["cafes"],
@@ -108,7 +109,6 @@ class RepairingFakeOllamaClient:
                 "type": "transport",
                 "start_time": "10:00",
                 "end_time": "10:20",
-                "title": "Move to Gion",
                 "description": "Travel to Gion.",
               }
             ],
@@ -284,7 +284,7 @@ class AlwaysInvalidFakeOllamaClient:
           "theme": "Invalid transport",
           "timeline_items": [
             {
-              "type": "transport",
+              "type": "unknown",
               "start_time": "10:00",
               "end_time": "10:20",
               "title": "Move to Gion",
@@ -354,15 +354,25 @@ def test_generate_itinerary_plan_includes_rag_context_in_prompt() -> None:
   assert "rag_docs/japan/kyoto/cafes.md" in user_message
 
 
-def test_transport_item_requires_transport_metadata() -> None:
-  with pytest.raises(ValidationError):
-    TimelineItem(
-      type="transport",
-      start_time="10:30",
-      end_time="10:45",
-      title="Walk through Sannenzaka and Ninenzaka",
-      description="A scenic walk through preserved streets.",
-    )
+def test_itinerary_prompt_requires_source_safe_recommendation_options() -> None:
+  from northstar.agent import itinerary
+
+  assert "Do not invent real restaurant, cafe, hotel, or accommodation names." in itinerary.ITINERARY_SYSTEM_PROMPT
+  assert "Use descriptive option labels" in itinerary.ITINERARY_SYSTEM_PROMPT
+  assert "real venue names only when they appear in curated local notes" in itinerary.ITINERARY_SYSTEM_PROMPT
+  assert "Keep source_notes populated" in itinerary.ITINERARY_SYSTEM_PROMPT
+
+
+def test_transport_item_allows_missing_transport_metadata_for_soft_validation() -> None:
+  item = TimelineItem(
+    type="transport",
+    start_time="10:30",
+    end_time="10:45",
+    title="Walk through Sannenzaka and Ninenzaka",
+    description="A scenic walk through preserved streets.",
+  )
+
+  assert item.type == "transport"
 
 
 def test_transport_item_accepts_complete_transport_metadata() -> None:
@@ -398,15 +408,16 @@ def test_transport_item_allows_food_destination_intent() -> None:
   assert item.type == "transport"
 
 
-def test_meal_item_requires_food_metadata() -> None:
-  with pytest.raises(ValidationError):
-    TimelineItem(
-      type="meal",
-      start_time="18:00",
-      end_time="19:30",
-      title="Dinner in Gion",
-      description="Enjoy dinner.",
-    )
+def test_meal_item_allows_missing_food_metadata_for_soft_validation() -> None:
+  item = TimelineItem(
+    type="meal",
+    start_time="18:00",
+    end_time="19:30",
+    title="Dinner in Gion",
+    description="Enjoy dinner.",
+  )
+
+  assert item.type == "meal"
 
 
 def test_meal_item_allows_missing_cuisine_when_dietary_metadata_exists() -> None:
@@ -474,50 +485,54 @@ def test_itinerary_plan_accepts_accommodation_options() -> None:
   assert plan.accommodation_options[0].category == "accommodation"
 
 
-def test_cafe_item_requires_reservation_recommendation() -> None:
-  with pytest.raises(ValidationError):
-    TimelineItem(
-      type="cafe",
-      start_time="10:45",
-      end_time="11:30",
-      title="Cafe Break",
-      description="Coffee break.",
-    )
+def test_cafe_item_allows_missing_reservation_recommendation_for_soft_validation() -> None:
+  item = TimelineItem(
+    type="cafe",
+    start_time="10:45",
+    end_time="11:30",
+    title="Cafe Break",
+    description="Coffee break.",
+  )
+
+  assert item.type == "cafe"
 
 
-def test_place_item_rejects_restaurant_or_meal_titles() -> None:
-  with pytest.raises(ValidationError):
-    TimelineItem(
-      type="place",
-      start_time="18:00",
-      end_time="19:30",
-      title="Dinner in Gion",
-      description="Enjoy a vegetarian dinner.",
-      place_category="Restaurant",
-      indoor_outdoor="Indoor",
-    )
+def test_place_item_allows_restaurant_or_meal_titles_for_soft_validation() -> None:
+  item = TimelineItem(
+    type="place",
+    start_time="18:00",
+    end_time="19:30",
+    title="Dinner in Gion",
+    description="Enjoy a vegetarian dinner.",
+    place_category="Restaurant",
+    indoor_outdoor="Indoor",
+  )
+
+  assert item.type == "place"
 
 
-def test_break_time_item_rejects_food_intent() -> None:
-  with pytest.raises(ValidationError):
-    TimelineItem(
-      type="break_time",
-      start_time="12:00",
-      end_time="13:30",
-      title="Lunch Break & Quiet Exploration",
-      description="Enjoy a relaxed vegetarian lunch in the area.",
-    )
+def test_break_time_item_allows_food_intent_for_soft_validation() -> None:
+  item = TimelineItem(
+    type="break_time",
+    start_time="12:00",
+    end_time="13:30",
+    title="Lunch Break & Quiet Exploration",
+    description="Enjoy a relaxed vegetarian lunch in the area.",
+  )
+
+  assert item.type == "break_time"
 
 
-def test_free_time_item_rejects_cafe_intent() -> None:
-  with pytest.raises(ValidationError):
-    TimelineItem(
-      type="free_time",
-      start_time="15:00",
-      end_time="16:00",
-      title="Coffee and browsing",
-      description="A flexible coffee stop near downtown.",
-    )
+def test_free_time_item_allows_cafe_intent_for_soft_validation() -> None:
+  item = TimelineItem(
+    type="free_time",
+    start_time="15:00",
+    end_time="16:00",
+    title="Coffee and browsing",
+    description="A flexible coffee stop near downtown.",
+  )
+
+  assert item.type == "free_time"
 
 
 def test_free_time_item_allows_incidental_dinner_reference() -> None:
@@ -532,15 +547,63 @@ def test_free_time_item_allows_incidental_dinner_reference() -> None:
   assert item.type == "free_time"
 
 
-def test_place_item_requires_place_metadata() -> None:
-  with pytest.raises(ValidationError):
-    TimelineItem(
-      type="place",
-      start_time="09:30",
-      end_time="11:00",
-      title="Philosopher's Path",
-      description="A calm morning walk.",
-    )
+def test_place_item_allows_missing_place_metadata_for_soft_validation() -> None:
+  item = TimelineItem(
+    type="place",
+    start_time="09:30",
+    end_time="11:00",
+    title="Philosopher's Path",
+    description="A calm morning walk.",
+  )
+
+  assert item.type == "place"
+
+
+def test_evaluate_itinerary_quality_reports_soft_issues_without_rejecting_plan() -> None:
+  plan = ItineraryPlan(
+    title="A slightly messy Kyoto plan",
+    destination="Kyoto, Japan",
+    duration_days=1,
+    days=[
+      {
+        "day_number": 1,
+        "theme": "Downtown Kyoto",
+        "timeline_items": [
+          {
+            "type": "place",
+            "start_time": "15:00",
+            "end_time": "16:30",
+            "title": "Bookstore Browsing and Quiet Cafe Break",
+            "description": "Browse books and enjoy a quiet coffee break.",
+            "place_category": "bookstore and cafe",
+            "indoor_outdoor": "indoor",
+          },
+          {
+            "type": "meal",
+            "start_time": "18:00",
+            "end_time": "19:00",
+            "title": "Dinner",
+            "description": "Enjoy dinner.",
+          },
+        ],
+      }
+    ],
+  )
+
+  issues = evaluate_itinerary_quality(plan)
+
+  assert {
+    "severity": "warning",
+    "code": "possible_misclassified_food_item",
+    "path": "days.0.timeline_items.0",
+    "message": "Item mentions food, cafe, coffee, or restaurant intent but is not typed as meal, cafe, or transport.",
+  } in issues
+  assert {
+    "severity": "warning",
+    "code": "missing_meal_metadata",
+    "path": "days.0.timeline_items.1",
+    "message": "Meal item is missing dietary_fit, reservation_recommended.",
+  } in issues
 
 
 def test_generate_itinerary_plan_repairs_invalid_structured_output() -> None:
@@ -566,7 +629,7 @@ def test_generate_itinerary_plan_repairs_invalid_structured_output() -> None:
   assert "Repair" in client.messages[1][0]["content"]
 
 
-def test_generate_itinerary_plan_repairs_misclassified_meal() -> None:
+def test_generate_itinerary_plan_logs_misclassified_meal_as_quality_warning() -> None:
   client = TypeRepairingFakeOllamaClient()
 
   plan = generate_itinerary_plan(
@@ -580,13 +643,14 @@ def test_generate_itinerary_plan_repairs_misclassified_meal() -> None:
     client=client,
   )
 
-  assert client.calls == 2
-  assert plan.diagnostics.repair_attempted is True
-  assert plan.itinerary.days[0].timeline_items[0].type == "meal"
-  assert plan.itinerary.days[0].timeline_items[0].dietary_fit == ["vegetarian"]
+  assert client.calls == 1
+  assert plan.diagnostics.repair_attempted is False
+  assert plan.diagnostics.quality_status == "warning"
+  assert plan.diagnostics.quality_issues[0]["code"] == "possible_misclassified_food_item"
+  assert plan.itinerary.days[0].timeline_items[0].type == "place"
 
 
-def test_generate_itinerary_plan_repairs_mixed_bookstore_and_cafe_item() -> None:
+def test_generate_itinerary_plan_logs_mixed_bookstore_and_cafe_item_as_quality_warning() -> None:
   client = MixedBookstoreCafeRepairingFakeOllamaClient()
 
   plan = generate_itinerary_plan(
@@ -602,10 +666,12 @@ def test_generate_itinerary_plan_repairs_mixed_bookstore_and_cafe_item() -> None
 
   items = plan.itinerary.days[0].timeline_items
 
-  assert client.calls == 2
-  assert [item.type for item in items] == ["place", "cafe"]
-  assert items[0].title == "Bookstore Browsing"
-  assert items[1].title == "Cafe Break"
+  assert client.calls == 1
+  assert plan.diagnostics.repair_attempted is False
+  assert plan.diagnostics.quality_status == "warning"
+  assert plan.diagnostics.quality_issues[0]["code"] == "possible_misclassified_food_item"
+  assert [item.type for item in items] == ["place"]
+  assert items[0].title == "Bookstore and Cafe Break"
 
 
 def test_generate_itinerary_plan_raises_when_repair_fails() -> None:

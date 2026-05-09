@@ -153,4 +153,6 @@ def test_get_itinerary_plan_returns_saved_itinerary_diagnostics(session: Session
     "repair_attempted": True,
     "repair_succeeded": True,
     "initial_validation_error": "days.0.timeline_items.5: fixed",
+    "quality_status": "ok",
+    "quality_issues": [],
   }

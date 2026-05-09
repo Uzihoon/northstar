@@ -163,4 +163,13 @@ def test_generate_and_optionally_save_itinerary_persists_rag_context(session: Se
     "repair_attempted": False,
     "repair_succeeded": False,
     "initial_validation_error": None,
+    "quality_status": "warning",
+    "quality_issues": [
+      {
+        "severity": "warning",
+        "code": "missing_area",
+        "path": "days.0.timeline_items.0",
+        "message": "Item is missing area.",
+      }
+    ],
   }
