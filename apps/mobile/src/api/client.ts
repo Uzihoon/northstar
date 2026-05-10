@@ -1,4 +1,5 @@
 import type {
+  ChatResponse,
   Destination,
   DestinationListResponse,
   ItineraryPlanRunResponse,
@@ -6,6 +7,8 @@ import type {
   MobilePlanSummary,
   OnboardingMessage,
   OnboardingTurnResponse,
+  SavedPlanListResponse,
+  SavedPlanSummary,
 } from "./types";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -66,11 +69,23 @@ export async function getPlanSummary(planId: string): Promise<MobilePlanSummary>
   return request<MobilePlanSummary>(`/itinerary-plans/${planId}/summary`);
 }
 
+export async function listSavedPlans(): Promise<SavedPlanSummary[]> {
+  const data = await request<SavedPlanListResponse>("/itinerary-plans");
+  return data.plans;
+}
+
 export async function sendOnboardingMessages(
   messages: OnboardingMessage[],
 ): Promise<OnboardingTurnResponse> {
   return request<OnboardingTurnResponse>("/onboarding/messages", {
     method: "POST",
     body: JSON.stringify({ messages }),
+  });
+}
+
+export async function sendNoriChat(prompt: string): Promise<ChatResponse> {
+  return request<ChatResponse>("/chat", {
+    method: "POST",
+    body: JSON.stringify({ prompt }),
   });
 }

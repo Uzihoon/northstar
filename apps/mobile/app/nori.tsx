@@ -1,5 +1,5 @@
-import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { Redirect } from "expo-router";
+import { useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,99 +12,65 @@ import {
   View,
 } from "react-native";
 
-import { sendOnboardingMessages } from "../src/api/client";
-import type { OnboardingMessage } from "../src/api/types";
+import { sendNoriChat } from "../src/api/client";
 import { useAuth } from "../src/auth/AuthContext";
-import { Pill } from "../src/components/Pill";
-import { PrimaryButton } from "../src/components/PrimaryButton";
+import { AppTabBar } from "../src/components/AppTabBar";
 import { Screen } from "../src/components/Screen";
 import { colors, radius, shadows, spacing, typography } from "../src/theme/tokens";
 
-const QUICK_REPLIES = [
-  "I loved quiet cafes in Kyoto.",
-  "I like slow days and bookstores.",
-  "Food matters a lot when I travel.",
+type ChatMessage = {
+  role: "assistant" | "user";
+  content: string;
+};
+
+const STARTER_MESSAGES: ChatMessage[] = [
+  {
+    role: "assistant",
+    content: "I am here. Ask me for trip ideas, a quick plan tweak, or a softer version of an itinerary.",
+  },
 ];
 
-export default function OnboardingScreen() {
-  const { completeOnboarding } = useAuth();
-  const [messages, setMessages] = useState<OnboardingMessage[]>([]);
+export default function NoriScreen() {
+  const { isAuthenticated } = useAuth();
+  const [messages, setMessages] = useState<ChatMessage[]>(STARTER_MESSAGES);
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
+  if (!isAuthenticated) {
+    return <Redirect href="/onboarding" />;
+  }
 
-    async function loadOpeningMessage() {
-      try {
-        const response = await sendOnboardingMessages([]);
-        if (isMounted) {
-          setMessages([{ role: "assistant", content: response.assistant_message }]);
-          setErrorMessage(null);
-        }
-      } catch (error) {
-        if (isMounted) {
-          setErrorMessage(error instanceof Error ? error.message : "Nori could not start onboarding.");
-          setMessages([
-            {
-              role: "assistant",
-              content: "Hi, I'm Nori. I'll learn your travel style through a few easy questions. What was a trip or city you really enjoyed?",
-            },
-          ]);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    }
+  async function sendMessage() {
+    const prompt = input.trim();
 
-    loadOpeningMessage();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  async function sendMessage(messageText = input) {
-    const trimmed = messageText.trim();
-
-    if (!trimmed || isSending) {
+    if (!prompt || isSending) {
       return;
     }
 
-    const nextMessages: OnboardingMessage[] = [
+    const nextMessages: ChatMessage[] = [
       ...messages,
-      { role: "user", content: trimmed },
+      { role: "user", content: prompt },
     ];
 
-    setInput("");
     setMessages(nextMessages);
+    setInput("");
     setIsSending(true);
     setErrorMessage(null);
 
     try {
-      const response = await sendOnboardingMessages(nextMessages);
+      const response = await sendNoriChat(
+        `You are Nori, a warm travel assistant inside Northstar. Keep the answer concise and practical.\n\nUser: ${prompt}`,
+      );
       setMessages([
         ...nextMessages,
-        { role: "assistant", content: response.assistant_message },
+        { role: "assistant", content: response.message },
       ]);
-      if (response.is_complete) {
-        completeOnboarding();
-        router.replace("/");
-      }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Nori could not save that preference.");
+      setErrorMessage(error instanceof Error ? error.message : "Nori could not respond.");
     } finally {
       setIsSending(false);
     }
-  }
-
-  function enterDashboard() {
-    completeOnboarding();
-    router.replace("/");
   }
 
   return (
@@ -113,17 +79,17 @@ export default function OnboardingScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.container}
       >
-        <View style={styles.topCard}>
-          <Pill label="Meet Nori" tone="sage" />
-          <Text style={styles.title}>Let's make future trips feel less generic.</Text>
-          <Text style={styles.subtitle}>
-            Chat naturally for a minute. Nori quietly learns the kind of trips you like.
-          </Text>
-          <PrimaryButton
-            label="Skip chat"
-            onPress={enterDashboard}
-            tone="secondary"
-          />
+        <View style={styles.header}>
+          <View style={styles.orb}>
+            <View style={[styles.orbBlob, styles.orbOrange]} />
+            <View style={[styles.orbBlob, styles.orbSage]} />
+            <View style={[styles.orbBlob, styles.orbCream]} />
+            <Text style={styles.orbText}>N</Text>
+          </View>
+          <View style={styles.headerCopy}>
+            <Text style={styles.kicker}>Nori</Text>
+            <Text style={styles.title}>Ask for a trip idea.</Text>
+          </View>
         </View>
 
         {errorMessage ? (
@@ -132,10 +98,7 @@ export default function OnboardingScreen() {
           </View>
         ) : null}
 
-        <ScrollView
-          contentContainerStyle={styles.messages}
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView contentContainerStyle={styles.messages} showsVerticalScrollIndicator={false}>
           {messages.map((message, index) => (
             <View
               key={`${message.role}-${index}`}
@@ -149,27 +112,18 @@ export default function OnboardingScreen() {
             </View>
           ))}
 
-          {isLoading || isSending ? (
+          {isSending ? (
             <View style={[styles.bubble, styles.assistantBubble]}>
               <ActivityIndicator color={colors.primary} />
             </View>
           ) : null}
-
         </ScrollView>
-
-        <View style={styles.quickReplies}>
-          {QUICK_REPLIES.map((reply) => (
-            <Pressable key={reply} onPress={() => sendMessage(reply)} style={styles.quickReply}>
-              <Text style={styles.quickReplyText}>{reply}</Text>
-            </Pressable>
-          ))}
-        </View>
 
         <View style={styles.composer}>
           <TextInput
             multiline
             onChangeText={setInput}
-            placeholder="Tell Nori about a trip you loved..."
+            placeholder="Ask Nori..."
             placeholderTextColor={colors.muted}
             style={styles.input}
             value={input}
@@ -177,7 +131,7 @@ export default function OnboardingScreen() {
           <Pressable
             accessibilityRole="button"
             disabled={!input.trim() || isSending}
-            onPress={() => sendMessage()}
+            onPress={sendMessage}
             style={({ pressed }) => [
               styles.sendButton,
               pressed && styles.sendButtonPressed,
@@ -187,6 +141,8 @@ export default function OnboardingScreen() {
             <Text style={styles.sendButtonText}>Send</Text>
           </Pressable>
         </View>
+
+        <AppTabBar active="nori" />
       </KeyboardAvoidingView>
     </Screen>
   );
@@ -197,21 +153,68 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: spacing.md,
   },
-  topCard: {
+  header: {
+    alignItems: "center",
     backgroundColor: colors.surface,
     borderColor: colors.clay,
     borderRadius: radius.lg,
     borderWidth: 1,
-    gap: spacing.sm,
+    flexDirection: "row",
+    gap: spacing.lg,
     padding: spacing.lg,
     ...shadows.card,
   },
+  orb: {
+    alignItems: "center",
+    backgroundColor: colors.ink,
+    borderRadius: 36,
+    height: 72,
+    justifyContent: "center",
+    overflow: "hidden",
+    width: 72,
+  },
+  orbBlob: {
+    borderRadius: 40,
+    position: "absolute",
+  },
+  orbOrange: {
+    backgroundColor: "#F38B42",
+    height: 56,
+    left: -12,
+    top: 8,
+    width: 56,
+  },
+  orbSage: {
+    backgroundColor: "#8AB983",
+    height: 60,
+    right: -14,
+    top: -10,
+    width: 60,
+  },
+  orbCream: {
+    backgroundColor: "#FFE8AF",
+    bottom: -14,
+    height: 46,
+    right: 10,
+    width: 46,
+  },
+  orbText: {
+    color: colors.white,
+    fontSize: 28,
+    fontWeight: "900",
+    zIndex: 1,
+  },
+  headerCopy: {
+    flex: 1,
+  },
+  kicker: {
+    ...typography.caption,
+    color: colors.primaryPressed,
+    textTransform: "uppercase",
+  },
   title: {
     ...typography.heading,
-  },
-  subtitle: {
-    ...typography.body,
-    color: colors.muted,
+    marginTop: spacing.xs,
   },
   errorCard: {
     backgroundColor: "#F7D4BD",
@@ -229,7 +232,7 @@ const styles = StyleSheet.create({
   bubble: {
     borderRadius: radius.lg,
     gap: spacing.xs,
-    maxWidth: "86%",
+    maxWidth: "88%",
     padding: spacing.lg,
   },
   assistantBubble: {
@@ -248,23 +251,6 @@ const styles = StyleSheet.create({
   },
   bubbleText: {
     ...typography.body,
-  },
-  quickReplies: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  quickReply: {
-    backgroundColor: colors.surface,
-    borderColor: colors.clay,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  quickReplyText: {
-    ...typography.caption,
-    color: colors.moss,
   },
   composer: {
     alignItems: "flex-end",

@@ -47,6 +47,11 @@ export type PlanRunEvent = {
   message: string;
 };
 
+export type ChatResponse = {
+  model: string;
+  message: string;
+};
+
 export type OnboardingMessage = {
   role: "assistant" | "user";
   content: string;
@@ -58,6 +63,19 @@ export type OnboardingTurnResponse = {
   profile: Record<string, unknown>;
   is_complete: boolean;
   next_focus: string;
+};
+
+export type SavedPlanSummary = {
+  plan_id: string;
+  trip_request_id: string;
+  original_prompt: string;
+  title: string;
+  destination: string;
+  created_at: string;
+};
+
+export type SavedPlanListResponse = {
+  plans: SavedPlanSummary[];
 };
 
 export type MobilePlanSummary = {
