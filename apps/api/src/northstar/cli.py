@@ -1,6 +1,7 @@
 import json
 
 import typer
+from httpx import HTTPError
 from pathlib import Path
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -25,8 +26,11 @@ from northstar.memory.eval_store import get_eval_run, list_eval_runs, save_eval_
 from northstar.rag.retriever import retrieve_travel_context
 from northstar.rag.store import ingest_markdown_document, search_rag_chunks
 from northstar.rag.metadata import build_rag_metadata
+from northstar.research.agent import OllamaResearchAgent
+from northstar.research.fetcher import TrustedUrlFetcher
 from northstar.research.schemas import ResearchTarget, ResearchTheme
 from northstar.research.store import list_research_runs
+from northstar.research.service import run_research_pipeline
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -361,8 +365,10 @@ def research_city(
     theme: list[str] = typer.Option([], "--theme"),
     trusted_url: list[str] = typer.Option([], "--trusted-url"),
     dry_run: bool = typer.Option(False, "--dry-run"),
+    model: str | None = typer.Option(None, "--model", "-m"),
+    publish_notes: bool = typer.Option(False, "--publish-notes/--no-publish-notes"),
 ) -> None:
-  """Prepare a city research target for the RAG research pipeline."""
+  """Research a city and store stable notes plus candidate options."""
   target = ResearchTarget(
     country=country,
     city=city,
@@ -374,12 +380,37 @@ def research_city(
     typer.echo(json.dumps(target.model_dump(mode="json"), indent=2))
     return
 
-  typer.secho(
-    "Research execution is not wired yet. Use --dry-run for target parsing.",
-    fg=typer.colors.YELLOW,
-    err=True,
-  )
-  raise typer.Exit(code=1)
+  settings = get_settings()
+  resolved_model = model or settings.default_model
+  client = get_ollama_client()
+
+  try:
+    with get_session() as session:
+      result = run_research_pipeline(
+        session=session,
+        target=target,
+        model_name=resolved_model,
+        fetcher=TrustedUrlFetcher(),
+        research_agent=OllamaResearchAgent(
+          client=client,
+          model=resolved_model,
+        ),
+        publish_notes=publish_notes,
+      )
+  except (OllamaError, RuntimeError, ValueError, HTTPError) as exc:
+    typer.secho(str(exc), fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1) from exc
+  except SQLAlchemyError as exc:
+    exit_with_database_error(exc)
+
+  typer.echo(json.dumps({
+    "run_id": result.run.run_id,
+    "status": result.run.status,
+    "target": result.run.target,
+    "model_name": result.run.model_name,
+    "report": result.run.report,
+    "validation": result.validation.model_dump(mode="json"),
+  }, indent=2))
 
 @app.command("list-research-runs")
 def list_research_runs_command() -> None:
