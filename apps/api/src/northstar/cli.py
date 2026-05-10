@@ -25,6 +25,8 @@ from northstar.memory.eval_store import get_eval_run, list_eval_runs, save_eval_
 from northstar.rag.retriever import retrieve_travel_context
 from northstar.rag.store import ingest_markdown_document, search_rag_chunks
 from northstar.rag.metadata import build_rag_metadata
+from northstar.research.schemas import ResearchTarget, ResearchTheme
+from northstar.research.store import list_research_runs
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -35,6 +37,26 @@ def exit_with_database_error(exc: SQLAlchemyError) -> None:
     err=True,
   )
   raise typer.Exit(code=1) from exc
+
+def parse_research_themes(values: list[str]) -> list[ResearchTheme]:
+  if not values:
+    return list(ResearchTheme)
+
+  themes: list[ResearchTheme] = []
+
+  for value in values:
+    try:
+      themes.append(ResearchTheme(value))
+    except ValueError as exc:
+      allowed = ", ".join(theme.value for theme in ResearchTheme)
+      typer.secho(
+        f"Invalid research theme: {value}. Allowed themes: {allowed}",
+        fg=typer.colors.RED,
+        err=True,
+      )
+      raise typer.Exit(code=1) from exc
+
+  return themes
 
 @app.callback()
 def cli() -> None:
@@ -331,6 +353,55 @@ def build_context(
   )
 
   typer.echo(json.dumps(context.model_dump(mode="json"), indent=2))
+
+@app.command("research-city")
+def research_city(
+    city: str,
+    country: str = typer.Option(..., "--country"),
+    theme: list[str] = typer.Option([], "--theme"),
+    trusted_url: list[str] = typer.Option([], "--trusted-url"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+) -> None:
+  """Prepare a city research target for the RAG research pipeline."""
+  target = ResearchTarget(
+    country=country,
+    city=city,
+    themes=parse_research_themes(theme),
+    trusted_urls=trusted_url,
+  )
+
+  if dry_run:
+    typer.echo(json.dumps(target.model_dump(mode="json"), indent=2))
+    return
+
+  typer.secho(
+    "Research execution is not wired yet. Use --dry-run for target parsing.",
+    fg=typer.colors.YELLOW,
+    err=True,
+  )
+  raise typer.Exit(code=1)
+
+@app.command("list-research-runs")
+def list_research_runs_command() -> None:
+  """List saved research pipeline runs."""
+  try:
+    with get_session() as session:
+      runs = list_research_runs(session)
+  except SQLAlchemyError as exc:
+    exit_with_database_error(exc)
+
+  typer.echo(json.dumps([
+    {
+      "run_id": run.run_id,
+      "target": run.target,
+      "model_name": run.model_name,
+      "status": run.status,
+      "report": run.report,
+      "created_at": run.created_at,
+      "updated_at": run.updated_at,
+    }
+    for run in runs
+  ], indent=2))
 
 @app.command("list-plans")
 def list_plans(user: str = typer.Option("local", "--user")) -> None:
