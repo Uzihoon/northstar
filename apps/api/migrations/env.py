@@ -7,6 +7,7 @@ from northstar.config import get_settings
 from northstar.db import Base
 import northstar.memory.models  # noqa: F401
 import northstar.rag.models  # noqa: F401
+import northstar.research.models  # noqa: F401
 
 
 config = context.config
