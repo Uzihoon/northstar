@@ -101,6 +101,24 @@ def get_research_run(session: Session, *, run_id: str) -> SavedResearchRun | Non
   return _run_from_model(row) if row is not None else None
 
 
+def update_research_run_status(
+    session: Session,
+    *,
+    run_id: str,
+    status: str,
+    report: dict[str, object] | None = None,
+) -> SavedResearchRun:
+  row = session.get(ResearchRunModel, run_id)
+  if row is None:
+    raise ValueError(f"Research run not found: {run_id}")
+
+  row.status = status
+  row.report = report
+  session.commit()
+  session.refresh(row)
+  return _run_from_model(row)
+
+
 def list_research_runs(session: Session, *, limit: int = 20) -> list[SavedResearchRun]:
   rows = session.scalars(
     select(ResearchRunModel)

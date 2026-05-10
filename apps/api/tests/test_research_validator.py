@@ -98,3 +98,29 @@ def test_validate_research_draft_rejects_exact_prices_in_stable_notes() -> None:
 
   assert report.passed is False
   assert report.issues[0].code == "exact_price_in_stable_note"
+
+
+def test_validate_research_draft_allows_blocked_candidates_for_audit() -> None:
+  draft = ResearchDraft(
+    target=ResearchTarget(
+      country="Japan",
+      city="Kyoto",
+      themes=[ResearchTheme.cafes],
+    ),
+    candidates=[
+      CandidateOption(
+        name="Rejected Cafe",
+        category="cafe",
+        country="Japan",
+        city="Kyoto",
+        description="Critic rejected this candidate.",
+        price_level=PriceLevel.varies,
+        trust_rating=TrustRating.blocked,
+        source_urls=["https://example.com/rejected"],
+      )
+    ],
+  )
+
+  report = validate_research_draft(draft)
+
+  assert report.passed is True

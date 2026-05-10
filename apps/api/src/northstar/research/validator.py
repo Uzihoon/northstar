@@ -53,15 +53,6 @@ def validate_research_draft(draft: ResearchDraft) -> ResearchValidationReport:
   for index, candidate in enumerate(draft.candidates):
     path = f"candidates.{index}"
 
-    if candidate.trust_rating == TrustRating.blocked:
-      issues.append(
-        _issue(
-          code="blocked_candidate_in_publishable_draft",
-          path=path,
-          message="Blocked candidates must stay in blocked_items.",
-        )
-      )
-
     if not candidate.source_urls:
       issues.append(
         _issue(
