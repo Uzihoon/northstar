@@ -190,6 +190,11 @@ def test_research_city_runs_pipeline_and_prints_summary(monkeypatch) -> None:
       self.client = client
       self.model = model
 
+  class FakeOllamaResearchCritic:
+    def __init__(self, *, client, model: str) -> None:
+      self.client = client
+      self.model = model
+
   def fake_run_research_pipeline(**kwargs):
     captured.update(kwargs)
     return SimpleNamespace(
@@ -215,6 +220,7 @@ def test_research_city_runs_pipeline_and_prints_summary(monkeypatch) -> None:
   monkeypatch.setattr(cli_module, "get_session", lambda: FakeSession())
   monkeypatch.setattr(cli_module, "TrustedUrlFetcher", FakeTrustedUrlFetcher, raising=False)
   monkeypatch.setattr(cli_module, "OllamaResearchAgent", FakeOllamaResearchAgent, raising=False)
+  monkeypatch.setattr(cli_module, "OllamaResearchCritic", FakeOllamaResearchCritic, raising=False)
   monkeypatch.setattr(cli_module, "run_research_pipeline", fake_run_research_pipeline, raising=False)
 
   result = runner.invoke(
@@ -237,6 +243,7 @@ def test_research_city_runs_pipeline_and_prints_summary(monkeypatch) -> None:
   assert captured["target"].themes[0].value == "cafes"
   assert isinstance(captured["fetcher"], FakeTrustedUrlFetcher)
   assert isinstance(captured["research_agent"], FakeOllamaResearchAgent)
+  assert isinstance(captured["critic"], FakeOllamaResearchCritic)
 
   payload = json.loads(result.output)
   assert payload == {

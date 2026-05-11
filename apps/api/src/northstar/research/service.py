@@ -4,8 +4,9 @@ from typing import Any, Callable
 from sqlalchemy.orm import Session
 
 from northstar.research.fetcher import FetchedSourceDocument, hash_text
-from northstar.research.ports import ResearchAgent, ResearchFetcher
+from northstar.research.ports import ResearchAgent, ResearchCritic, ResearchFetcher
 from northstar.research.schemas import (
+  ResearchCritique,
   ResearchDraft,
   ResearchTarget,
   ResearchValidationReport,
@@ -35,6 +36,7 @@ def _build_completion_report(
     *,
     draft: ResearchDraft,
     source_snapshot_count: int,
+    critique: ResearchCritique | None,
     publish_notes: bool,
     published_notes: list[Any],
 ) -> dict[str, object]:
@@ -63,6 +65,7 @@ def _build_completion_report(
   return {
     "stable_notes": len(draft.stable_notes),
     "source_snapshots": source_snapshot_count,
+    "critic": _critic_report(critique),
     "candidates": len(publishable_candidates),
     "blocked_items": len(draft.blocked_items) + len(blocked_candidates),
     "publish_notes": publish_notes,
@@ -83,6 +86,19 @@ def _build_completion_report(
       for candidate in publishable_candidates
     ],
     "blocked_item_details": blocked_item_details,
+  }
+
+
+def _critic_report(critique: ResearchCritique | None) -> dict[str, object] | None:
+  if critique is None:
+    return None
+
+  return {
+    "summary": critique.summary,
+    "issues": [
+      issue.model_dump(mode="json")
+      for issue in critique.issues
+    ],
   }
 
 
@@ -149,6 +165,7 @@ def run_research_pipeline(
     model_name: str,
     fetcher: ResearchFetcher,
     research_agent: ResearchAgent,
+    critic: ResearchCritic | None = None,
     publish_notes: bool = False,
     note_publisher: NotePublisher | None = None,
 ) -> ResearchPipelineResult:
@@ -167,6 +184,16 @@ def run_research_pipeline(
     for document in source_documents
   ]
   draft = research_agent.research(target=target, source_texts=source_texts)
+  critique = None
+
+  if critic is not None:
+    critique = critic.review(
+      target=target,
+      draft=draft,
+      source_texts=source_texts,
+    )
+    draft = critique.reviewed_draft
+
   validation = validate_research_draft(draft)
 
   if not validation.passed:
@@ -175,6 +202,8 @@ def run_research_pipeline(
       run_id=run.run_id,
       status="failed",
       report={
+        "source_snapshots": len(source_snapshots),
+        "critic": _critic_report(critique),
         "validation": validation.model_dump(mode="json"),
       },
     )
@@ -208,6 +237,7 @@ def run_research_pipeline(
     report=_build_completion_report(
       draft=draft,
       source_snapshot_count=len(source_snapshots),
+      critique=critique,
       publish_notes=publish_notes,
       published_notes=published_notes,
     ),

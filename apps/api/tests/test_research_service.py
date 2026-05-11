@@ -11,6 +11,8 @@ from northstar.research.schemas import (
   BlockedResearchItem,
   CandidateOption,
   PriceLevel,
+  ResearchCritique,
+  ResearchReviewIssue,
   ResearchDraft,
   ResearchTarget,
   ResearchTheme,
@@ -67,9 +69,9 @@ class FakeResearchAgent:
           country="Japan",
           city="Kyoto",
           area="Gion",
-          description="Critic rejected this.",
+          description="The draft incorrectly approved this.",
           price_level=PriceLevel.varies,
-          trust_rating=TrustRating.blocked,
+          trust_rating=TrustRating.medium,
           source_urls=["https://example.com/blocked"],
         ),
       ],
@@ -99,6 +101,34 @@ class FakeFetcher:
     ]
 
 
+class FakeCritic:
+  def review(
+      self,
+      *,
+      target: ResearchTarget,
+      draft: ResearchDraft,
+      source_texts: list[str],
+  ) -> ResearchCritique:
+    reviewed_candidates = [
+      draft.candidates[0],
+      draft.candidates[1].model_copy(update={"trust_rating": TrustRating.blocked}),
+    ]
+
+    return ResearchCritique(
+      summary="Blocked one weak candidate after source review.",
+      issues=[
+        ResearchReviewIssue(
+          path="candidates.1",
+          severity="error",
+          action="block",
+          reason="Source did not support this cafe recommendation.",
+          source_urls=["https://example.com/blocked"],
+        )
+      ],
+      reviewed_draft=draft.model_copy(update={"candidates": reviewed_candidates}),
+    )
+
+
 def test_run_research_pipeline_stores_non_blocked_candidates(session: Session) -> None:
   published_notes = []
   research_agent = FakeResearchAgent()
@@ -125,6 +155,7 @@ def test_run_research_pipeline_stores_non_blocked_candidates(session: Session) -
     model_name="test-model",
     fetcher=FakeFetcher(),
     research_agent=research_agent,
+    critic=FakeCritic(),
     publish_notes=True,
     note_publisher=fake_note_publisher,
   )
@@ -140,6 +171,18 @@ def test_run_research_pipeline_stores_non_blocked_candidates(session: Session) -
   assert run.report == {
     "stable_notes": 1,
     "source_snapshots": 1,
+    "critic": {
+      "summary": "Blocked one weak candidate after source review.",
+      "issues": [
+        {
+          "path": "candidates.1",
+          "severity": "error",
+          "action": "block",
+          "reason": "Source did not support this cafe recommendation.",
+          "source_urls": ["https://example.com/blocked"],
+        }
+      ],
+    },
     "candidates": 1,
     "blocked_items": 2,
     "publish_notes": True,

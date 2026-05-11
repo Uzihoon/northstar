@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from northstar.research.schemas import ResearchDraft, ResearchTarget
+from northstar.research.schemas import ResearchCritique, ResearchDraft, ResearchTarget
 
 
 class ResearchFetcher(Protocol):
@@ -10,4 +10,15 @@ class ResearchFetcher(Protocol):
 
 class ResearchAgent(Protocol):
   def research(self, *, target: ResearchTarget, source_texts: list[str]) -> ResearchDraft:
+    ...
+
+
+class ResearchCritic(Protocol):
+  def review(
+      self,
+      *,
+      target: ResearchTarget,
+      draft: ResearchDraft,
+      source_texts: list[str],
+  ) -> ResearchCritique:
     ...

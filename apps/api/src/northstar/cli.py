@@ -27,6 +27,7 @@ from northstar.rag.retriever import retrieve_travel_context
 from northstar.rag.store import ingest_markdown_document, search_rag_chunks
 from northstar.rag.metadata import build_rag_metadata
 from northstar.research.agent import OllamaResearchAgent
+from northstar.research.critic import OllamaResearchCritic
 from northstar.research.discovery import (
   SourceSearchResult,
   build_seed_sources,
@@ -430,6 +431,10 @@ def research_city(
         model_name=resolved_model,
         fetcher=fetcher,
         research_agent=OllamaResearchAgent(
+          client=client,
+          model=resolved_model,
+        ),
+        critic=OllamaResearchCritic(
           client=client,
           model=resolved_model,
         ),

@@ -93,6 +93,20 @@ class ResearchDraft(BaseModel):
   blocked_items: list[BlockedResearchItem] = Field(default_factory=list)
 
 
+class ResearchReviewIssue(BaseModel):
+  path: str
+  severity: str
+  action: str
+  reason: str
+  source_urls: list[str] = Field(default_factory=list)
+
+
+class ResearchCritique(BaseModel):
+  summary: str
+  issues: list[ResearchReviewIssue] = Field(default_factory=list)
+  reviewed_draft: ResearchDraft
+
+
 class ResearchValidationIssue(BaseModel):
   code: str
   path: str
