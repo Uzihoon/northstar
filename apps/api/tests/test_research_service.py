@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from northstar.db import Base
 from northstar.research.models import ResearchCandidateModel
 from northstar.research.schemas import (
+  BlockedResearchItem,
   CandidateOption,
   PriceLevel,
   ResearchDraft,
@@ -67,6 +68,13 @@ class FakeResearchAgent:
           source_urls=["https://example.com/blocked"],
         ),
       ],
+      blocked_items=[
+        BlockedResearchItem(
+          title="Unsourced cafe list",
+          reason="No source URL supported the listed cafes.",
+          source_urls=["https://example.com/blocked-list"],
+        )
+      ],
     )
 
 
@@ -76,6 +84,20 @@ class FakeFetcher:
 
 
 def test_run_research_pipeline_stores_non_blocked_candidates(session: Session) -> None:
+  published_notes = []
+
+  def fake_note_publisher(*, session, target, notes):
+    published_notes.append({
+      "target": target,
+      "notes": notes,
+    })
+    return [
+      {
+        "path": "rag_docs/japan/kyoto/cafes.md",
+        "chunks": 2,
+      }
+    ]
+
   result = run_research_pipeline(
     session=session,
     target=ResearchTarget(
@@ -86,7 +108,8 @@ def test_run_research_pipeline_stores_non_blocked_candidates(session: Session) -
     model_name="test-model",
     fetcher=FakeFetcher(),
     research_agent=FakeResearchAgent(),
-    publish_notes=False,
+    publish_notes=True,
+    note_publisher=fake_note_publisher,
   )
 
   run = get_research_run(session, run_id=result.run.run_id)
@@ -99,7 +122,25 @@ def test_run_research_pipeline_stores_non_blocked_candidates(session: Session) -
   assert run.report == {
     "stable_notes": 1,
     "candidates": 1,
-    "blocked_items": 1,
-    "publish_notes": False,
+    "blocked_items": 2,
+    "publish_notes": True,
+    "published_note_paths": ["rag_docs/japan/kyoto/cafes.md"],
+    "published_note_chunks": 2,
+    "stable_note_titles": ["Kyoto cafe strategy"],
+    "candidate_names": ["Quiet Coffee"],
+    "blocked_item_details": [
+      {
+        "title": "Unsourced cafe list",
+        "reason": "No source URL supported the listed cafes.",
+        "source_urls": ["https://example.com/blocked-list"],
+      },
+      {
+        "title": "Blocked Coffee",
+        "reason": "Candidate marked blocked by critic.",
+        "source_urls": ["https://example.com/blocked"],
+      },
+    ],
   }
   assert [candidate.name for candidate in candidates] == ["Quiet Coffee"]
+  assert published_notes[0]["target"].city == "Kyoto"
+  assert published_notes[0]["notes"][0].title == "Kyoto cafe strategy"

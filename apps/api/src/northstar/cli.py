@@ -28,8 +28,13 @@ from northstar.rag.store import ingest_markdown_document, search_rag_chunks
 from northstar.rag.metadata import build_rag_metadata
 from northstar.research.agent import OllamaResearchAgent
 from northstar.research.fetcher import TrustedUrlFetcher
-from northstar.research.schemas import ResearchTarget, ResearchTheme
-from northstar.research.store import list_research_runs
+from northstar.research.publisher import publish_stable_notes
+from northstar.research.schemas import ResearchTarget, ResearchTheme, TrustRating
+from northstar.research.store import (
+  get_research_run,
+  list_research_runs,
+  search_candidate_options,
+)
 from northstar.research.service import run_research_pipeline
 
 app = typer.Typer(no_args_is_help=True)
@@ -61,6 +66,18 @@ def parse_research_themes(values: list[str]) -> list[ResearchTheme]:
       raise typer.Exit(code=1) from exc
 
   return themes
+
+def parse_trust_rating(value: str) -> TrustRating:
+  try:
+    return TrustRating(value)
+  except ValueError as exc:
+    allowed = ", ".join(rating.value for rating in TrustRating if rating != TrustRating.blocked)
+    typer.secho(
+      f"Invalid trust rating: {value}. Allowed ratings: {allowed}",
+      fg=typer.colors.RED,
+      err=True,
+    )
+    raise typer.Exit(code=1) from exc
 
 @app.callback()
 def cli() -> None:
@@ -396,6 +413,15 @@ def research_city(
           model=resolved_model,
         ),
         publish_notes=publish_notes,
+        note_publisher=lambda session, target, notes: publish_stable_notes(
+          session=session,
+          target=target,
+          notes=notes,
+          base_dir=Path("rag_docs"),
+          client=client,
+          embedding_model=settings.embedding_model,
+          embedding_dimensions=settings.embedding_dimensions,
+        ),
       )
   except (OllamaError, RuntimeError, ValueError, HTTPError) as exc:
     typer.secho(str(exc), fg=typer.colors.RED, err=True)
@@ -433,6 +459,74 @@ def list_research_runs_command() -> None:
     }
     for run in runs
   ], indent=2))
+
+@app.command("show-research-run")
+def show_research_run(run_id: str) -> None:
+  """Show a saved research pipeline run."""
+  try:
+    with get_session() as session:
+      run = get_research_run(session, run_id=run_id)
+  except SQLAlchemyError as exc:
+    exit_with_database_error(exc)
+
+  if run is None:
+    typer.secho("Research run not found.", fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1)
+
+  typer.echo(json.dumps({
+    "run_id": run.run_id,
+    "target": run.target,
+    "model_name": run.model_name,
+    "status": run.status,
+    "report": run.report,
+    "created_at": run.created_at,
+    "updated_at": run.updated_at,
+  }, indent=2))
+
+@app.command("search-candidates")
+def search_candidates_command(
+    country: str = typer.Option(..., "--country"),
+    city: str = typer.Option(..., "--city"),
+    category: str | None = typer.Option(None, "--category"),
+    min_trust: str = typer.Option("medium", "--min-trust"),
+    limit: int = typer.Option(10, "--limit"),
+) -> None:
+  """Search stored researched travel candidate options."""
+  trust = parse_trust_rating(min_trust)
+
+  try:
+    with get_session() as session:
+      candidates = search_candidate_options(
+        session=session,
+        country=country,
+        city=city,
+        category=category,
+        min_trust=trust,
+        limit=limit,
+      )
+  except SQLAlchemyError as exc:
+    exit_with_database_error(exc)
+
+  typer.echo(json.dumps({
+    "candidates": [
+      {
+        "candidate_id": candidate.candidate_id,
+        "run_id": candidate.run_id,
+        "name": candidate.name,
+        "category": candidate.category,
+        "country": candidate.country,
+        "city": candidate.city,
+        "area": candidate.area,
+        "description": candidate.description,
+        "price_level": candidate.price_level,
+        "trust_rating": candidate.trust_rating,
+        "source_urls": candidate.source_urls,
+        "last_checked_at": candidate.last_checked_at,
+        "metadata": candidate.metadata,
+      }
+      for candidate in candidates
+    ]
+  }, indent=2))
 
 @app.command("list-plans")
 def list_plans(user: str = typer.Option("local", "--user")) -> None:

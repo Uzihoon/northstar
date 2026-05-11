@@ -192,3 +192,121 @@ def test_list_research_runs_prints_saved_runs(monkeypatch) -> None:
       "updated_at": "2026-05-09T10:01:00+00:00",
     }
   ]
+
+
+def test_show_research_run_prints_saved_run(monkeypatch) -> None:
+  def fake_get_research_run(session, *, run_id: str):
+    assert run_id == "run-1"
+    return FakeResearchRun(
+      run_id="run-1",
+      target={"country": "Japan", "city": "Kyoto", "themes": ["cafes"]},
+      model_name="test-model",
+      status="completed",
+      report={
+        "stable_notes": 0,
+        "candidates": 0,
+        "blocked_items": 1,
+        "blocked_item_details": [
+          {
+            "title": "Unsourced cafe list",
+            "reason": "No source URL supported the listed cafes.",
+            "source_urls": ["https://example.com/blocked-list"],
+          }
+        ],
+      },
+      created_at="2026-05-09T10:00:00+00:00",
+      updated_at="2026-05-09T10:01:00+00:00",
+    )
+
+  monkeypatch.setattr(cli_module, "get_session", lambda: FakeSession())
+  monkeypatch.setattr(cli_module, "get_research_run", fake_get_research_run)
+
+  result = runner.invoke(cli_module.app, ["show-research-run", "run-1"])
+
+  assert result.exit_code == 0
+  payload = json.loads(result.output)
+  assert payload["run_id"] == "run-1"
+  assert payload["status"] == "completed"
+  assert payload["report"]["blocked_item_details"][0]["title"] == "Unsourced cafe list"
+
+
+def test_show_research_run_exits_for_missing_run(monkeypatch) -> None:
+  monkeypatch.setattr(cli_module, "get_session", lambda: FakeSession())
+  monkeypatch.setattr(cli_module, "get_research_run", lambda session, *, run_id: None)
+
+  result = runner.invoke(cli_module.app, ["show-research-run", "missing"])
+
+  assert result.exit_code == 1
+  assert "Research run not found." in result.stderr
+
+
+def test_search_candidates_prints_matching_options(monkeypatch) -> None:
+  captured = {}
+
+  def fake_search_candidate_options(**kwargs):
+    captured.update(kwargs)
+    return [
+      SimpleNamespace(
+        candidate_id="candidate-1",
+        run_id="run-1",
+        name="Quiet Coffee",
+        category="cafe",
+        country="Japan",
+        city="Kyoto",
+        area="Kawaramachi",
+        description="Central cafe option.",
+        price_level="moderate",
+        trust_rating="medium",
+        source_urls=["https://example.com"],
+        last_checked_at="2026-05-09T10:00:00+00:00",
+        metadata={},
+      )
+    ]
+
+  monkeypatch.setattr(cli_module, "get_session", lambda: FakeSession())
+  monkeypatch.setattr(cli_module, "search_candidate_options", fake_search_candidate_options)
+
+  result = runner.invoke(
+    cli_module.app,
+    [
+      "search-candidates",
+      "--country",
+      "Japan",
+      "--city",
+      "Kyoto",
+      "--category",
+      "cafe",
+      "--min-trust",
+      "medium",
+      "--limit",
+      "3",
+    ],
+  )
+
+  assert result.exit_code == 0
+  assert captured["country"] == "Japan"
+  assert captured["city"] == "Kyoto"
+  assert captured["category"] == "cafe"
+  assert captured["min_trust"].value == "medium"
+  assert captured["limit"] == 3
+  payload = json.loads(result.output)
+  assert payload["candidates"][0]["name"] == "Quiet Coffee"
+  assert payload["candidates"][0]["source_urls"] == ["https://example.com"]
+
+
+def test_search_candidates_rejects_invalid_min_trust() -> None:
+  result = runner.invoke(
+    cli_module.app,
+    [
+      "search-candidates",
+      "--country",
+      "Japan",
+      "--city",
+      "Kyoto",
+      "--min-trust",
+      "maybe",
+    ],
+  )
+
+  assert result.exit_code == 1
+  assert "Invalid trust rating: maybe" in result.stderr

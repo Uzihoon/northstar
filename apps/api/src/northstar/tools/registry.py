@@ -2,6 +2,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from northstar.tools.candidates import search_candidates
 from northstar.tools.weather import get_weather
 
 ToolHandler = Callable[..., dict[str, Any]]
@@ -38,11 +39,57 @@ WEATHER_TOOL = ToolDefinition(
   handler=get_weather
 )
 
+SEARCH_CANDIDATES_TOOL = ToolDefinition(
+  name="search_candidates",
+  schema={
+    "type": "function",
+    "function": {
+      "name": "search_candidates",
+      "description": (
+        "Search stored travel candidate options such as cafes, restaurants, "
+        "accommodations, attractions, or shops for a destination."
+      ),
+      "parameters": {
+        "type": "object",
+        "required": ["country", "city"],
+        "properties": {
+          "country": {
+            "type": "string",
+            "description": "Destination country, for example Japan.",
+          },
+          "city": {
+            "type": "string",
+            "description": "Destination city, for example Kyoto.",
+          },
+          "category": {
+            "type": "string",
+            "description": "Optional category such as cafe, restaurant, or accommodation.",
+          },
+          "min_trust": {
+            "type": "string",
+            "description": "Minimum trust rating: low, medium, or high.",
+            "enum": ["low", "medium", "high"],
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of candidates to return.",
+          },
+        },
+      },
+    },
+  },
+  handler=search_candidates,
+)
+
 TOOLS_BY_NAME = {
   WEATHER_TOOL.name: WEATHER_TOOL,
+  SEARCH_CANDIDATES_TOOL.name: SEARCH_CANDIDATES_TOOL,
 }
 
-TOOL_SCHEMAS = [WEATHER_TOOL.schema]
+TOOL_SCHEMAS = [
+  WEATHER_TOOL.schema,
+  SEARCH_CANDIDATES_TOOL.schema,
+]
 
 def run_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
   tool = TOOLS_BY_NAME.get(name)
