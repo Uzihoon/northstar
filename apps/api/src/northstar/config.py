@@ -16,6 +16,10 @@ class Settings(BaseSettings):
   database_url: str = "postgresql+psycopg://northstar:northstar@localhost:5432/northstar"
   embedding_model: str = "qwen3-embedding:0.6b"
   embedding_dimensions: int = 1024
+  search_provider: str = "none"
+  brave_search_api_key: str | None = None
+  brave_search_country: str = "us"
+  brave_search_lang: str = "en"
 
 @lru_cache
 def get_settings() -> Settings:

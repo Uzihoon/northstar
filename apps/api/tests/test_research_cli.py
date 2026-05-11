@@ -201,6 +201,98 @@ def test_research_city_runs_pipeline_and_prints_summary(monkeypatch) -> None:
   }
 
 
+def test_research_city_uses_discovery_fetcher_when_web_search_enabled(monkeypatch) -> None:
+  captured = {}
+
+  class FakeSettings:
+    default_model = "test-model"
+    search_provider = "brave"
+    brave_search_api_key = "secret"
+    brave_search_country = "us"
+    brave_search_lang = "en"
+
+  class FakeDiscoveryUrlFetcher:
+    def __init__(self, *, search_client) -> None:
+      self.search_client = search_client
+
+  class FakeOllamaResearchAgent:
+    def __init__(self, *, client, model: str) -> None:
+      self.client = client
+      self.model = model
+
+  def fake_build_source_search_client(settings):
+    assert settings.search_provider == "brave"
+    return "search-client"
+
+  def fake_run_research_pipeline(**kwargs):
+    captured.update(kwargs)
+    return SimpleNamespace(
+      run=FakeResearchRun(
+        run_id="run-1",
+        target=kwargs["target"].model_dump(mode="json"),
+        model_name=kwargs["model_name"],
+        status="completed",
+        report={},
+        created_at="2026-05-09T10:00:00+00:00",
+        updated_at="2026-05-09T10:01:00+00:00",
+      ),
+      validation=ResearchValidationReport(passed=True),
+    )
+
+  monkeypatch.setattr(cli_module, "get_settings", lambda: FakeSettings())
+  monkeypatch.setattr(cli_module, "get_ollama_client", lambda: object())
+  monkeypatch.setattr(cli_module, "get_session", lambda: FakeSession())
+  monkeypatch.setattr(cli_module, "build_source_search_client", fake_build_source_search_client)
+  monkeypatch.setattr(cli_module, "DiscoveryUrlFetcher", FakeDiscoveryUrlFetcher, raising=False)
+  monkeypatch.setattr(cli_module, "OllamaResearchAgent", FakeOllamaResearchAgent, raising=False)
+  monkeypatch.setattr(cli_module, "run_research_pipeline", fake_run_research_pipeline, raising=False)
+
+  result = runner.invoke(
+    cli_module.app,
+    [
+      "research-city",
+      "Kyoto",
+      "--country",
+      "Japan",
+      "--theme",
+      "cafes",
+      "--web-search",
+    ],
+  )
+
+  assert result.exit_code == 0
+  assert isinstance(captured["fetcher"], FakeDiscoveryUrlFetcher)
+  assert captured["fetcher"].search_client == "search-client"
+
+
+def test_research_city_web_search_requires_configured_provider(monkeypatch) -> None:
+  class FakeSettings:
+    default_model = "test-model"
+    search_provider = "none"
+    brave_search_api_key = None
+    brave_search_country = "us"
+    brave_search_lang = "en"
+
+  monkeypatch.setattr(cli_module, "get_settings", lambda: FakeSettings())
+  monkeypatch.setattr(cli_module, "get_ollama_client", lambda: object())
+
+  result = runner.invoke(
+    cli_module.app,
+    [
+      "research-city",
+      "Kyoto",
+      "--country",
+      "Japan",
+      "--theme",
+      "cafes",
+      "--web-search",
+    ],
+  )
+
+  assert result.exit_code == 1
+  assert "Set SEARCH_PROVIDER=brave and BRAVE_SEARCH_API_KEY" in result.stderr
+
+
 def test_list_research_runs_prints_saved_runs(monkeypatch) -> None:
   def fake_list_research_runs(session):
     return [

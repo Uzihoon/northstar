@@ -28,9 +28,13 @@ from northstar.rag.store import ingest_markdown_document, search_rag_chunks
 from northstar.rag.metadata import build_rag_metadata
 from northstar.research.agent import OllamaResearchAgent
 from northstar.research.discovery import build_seed_sources, build_source_queries
-from northstar.research.fetcher import TrustedUrlFetcher
+from northstar.research.fetcher import DiscoveryUrlFetcher, TrustedUrlFetcher
 from northstar.research.publisher import publish_stable_notes
 from northstar.research.schemas import ResearchTarget, ResearchTheme, TrustRating
+from northstar.research.search_client import (
+  SearchConfigurationError,
+  build_source_search_client,
+)
 from northstar.research.store import (
   get_research_run,
   list_research_runs,
@@ -385,6 +389,7 @@ def research_city(
     dry_run: bool = typer.Option(False, "--dry-run"),
     model: str | None = typer.Option(None, "--model", "-m"),
     publish_notes: bool = typer.Option(False, "--publish-notes/--no-publish-notes"),
+    web_search: bool = typer.Option(False, "--web-search/--no-web-search"),
 ) -> None:
   """Research a city and store stable notes plus candidate options."""
   target = ResearchTarget(
@@ -403,12 +408,22 @@ def research_city(
   client = get_ollama_client()
 
   try:
+    fetcher = TrustedUrlFetcher()
+
+    if web_search:
+      search_client = build_source_search_client(settings)
+      if search_client is None:
+        raise SearchConfigurationError(
+          "Set SEARCH_PROVIDER=brave and BRAVE_SEARCH_API_KEY to use --web-search."
+        )
+      fetcher = DiscoveryUrlFetcher(search_client=search_client)
+
     with get_session() as session:
       result = run_research_pipeline(
         session=session,
         target=target,
         model_name=resolved_model,
-        fetcher=TrustedUrlFetcher(),
+        fetcher=fetcher,
         research_agent=OllamaResearchAgent(
           client=client,
           model=resolved_model,
@@ -424,7 +439,7 @@ def research_city(
           embedding_dimensions=settings.embedding_dimensions,
         ),
       )
-  except (OllamaError, RuntimeError, ValueError, HTTPError) as exc:
+  except (OllamaError, RuntimeError, ValueError, HTTPError, SearchConfigurationError) as exc:
     typer.secho(str(exc), fg=typer.colors.RED, err=True)
     raise typer.Exit(code=1) from exc
   except SQLAlchemyError as exc:
