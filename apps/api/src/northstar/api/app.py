@@ -24,9 +24,11 @@ from northstar.memory.plan_store import (
   list_itinerary_plans,
 )
 from northstar.memory.plan_run_store import create_itinerary_plan_run, get_itinerary_plan_run
+from northstar.api.admin import router as admin_router
 from northstar.rag.retriever import retrieve_travel_context
 
 app = FastAPI(title="Northstar API")
+app.include_router(admin_router)
 
 class ChatRequest(BaseModel):
   prompt: str

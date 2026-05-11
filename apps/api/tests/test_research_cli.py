@@ -115,6 +115,67 @@ def test_plan_research_sources_prints_query_plan() -> None:
   }
 
 
+def test_discover_research_sources_prints_search_results(monkeypatch) -> None:
+  class FakeSettings:
+    search_provider = "tavily"
+    tavily_api_key = "secret"
+    tavily_search_depth = "basic"
+    tavily_country = "japan"
+
+  class FakeSearchClient:
+    def search(self, *, query: str, limit: int):
+      return [
+        cli_module.SourceSearchResult(
+          title="Kyoto Cafes",
+          url="https://example.com/cafes?utm_source=test",
+          snippet="Cafe guide.",
+        )
+      ]
+
+  monkeypatch.setattr(cli_module, "get_settings", lambda: FakeSettings())
+  monkeypatch.setattr(cli_module, "build_source_search_client", lambda settings: FakeSearchClient())
+
+  result = runner.invoke(
+    cli_module.app,
+    [
+      "discover-research-sources",
+      "Kyoto",
+      "--country",
+      "Japan",
+      "--theme",
+      "cafes",
+      "--trusted-url",
+      "https://kyoto.travel/en/",
+    ],
+  )
+
+  assert result.exit_code == 0
+  payload = json.loads(result.output)
+  assert payload["target"]["city"] == "Kyoto"
+  assert payload["queries"] == [
+    "Kyoto Japan official travel cafes",
+    "Kyoto Japan cafes guide",
+  ]
+  assert payload["sources"] == [
+    {
+      "title": "https://kyoto.travel/en/",
+      "url": "https://kyoto.travel/en/",
+      "snippet": "Operator supplied trusted URL.",
+      "query": None,
+      "source_kind": "trusted_url",
+      "trust_hint": "high",
+    },
+    {
+      "title": "Kyoto Cafes",
+      "url": "https://example.com/cafes",
+      "snippet": "Cafe guide.",
+      "query": "Kyoto Japan official travel cafes",
+      "source_kind": "search_result",
+      "trust_hint": "low",
+    },
+  ]
+
+
 def test_research_city_runs_pipeline_and_prints_summary(monkeypatch) -> None:
   captured = {}
 

@@ -1,10 +1,15 @@
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from northstar.research.models import ResearchCandidateModel, ResearchRunModel
+from northstar.research.models import (
+  ResearchCandidateModel,
+  ResearchRunModel,
+  ResearchSourceSnapshotModel,
+)
 from northstar.research.schemas import CandidateOption, ResearchTarget, TrustRating
 
 TRUST_ORDER = {
@@ -23,6 +28,28 @@ class SavedResearchRun:
   report: dict[str, object] | None
   created_at: str
   updated_at: str
+
+
+@dataclass(frozen=True)
+class FetchedSourceSnapshot:
+  url: str
+  title: str | None
+  content_hash: str
+  extracted_text: str
+  metadata: dict[str, object]
+  fetched_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class SavedSourceSnapshot:
+  snapshot_id: str
+  run_id: str
+  url: str
+  title: str | None
+  content_hash: str
+  extracted_text: str
+  fetched_at: str
+  metadata: dict[str, object]
 
 
 @dataclass(frozen=True)
@@ -79,6 +106,19 @@ def _candidate_from_model(model: ResearchCandidateModel) -> SavedCandidateOption
   )
 
 
+def _source_snapshot_from_model(model: ResearchSourceSnapshotModel) -> SavedSourceSnapshot:
+  return SavedSourceSnapshot(
+    snapshot_id=model.id,
+    run_id=model.run_id,
+    url=model.url,
+    title=model.title,
+    content_hash=model.content_hash,
+    extracted_text=model.extracted_text,
+    fetched_at=model.fetched_at.isoformat(),
+    metadata=model.source_metadata or {},
+  )
+
+
 def create_research_run(
     session: Session,
     *,
@@ -126,6 +166,58 @@ def list_research_runs(session: Session, *, limit: int = 20) -> list[SavedResear
     .limit(limit)
   ).all()
   return [_run_from_model(row) for row in rows]
+
+
+def save_source_snapshots(
+    session: Session,
+    *,
+    run_id: str,
+    sources: list[FetchedSourceSnapshot],
+) -> list[SavedSourceSnapshot]:
+  rows = [
+    _source_snapshot_model(run_id=run_id, source=source)
+    for source in sources
+  ]
+  session.add_all(rows)
+  session.commit()
+
+  for row in rows:
+    session.refresh(row)
+
+  return [_source_snapshot_from_model(row) for row in rows]
+
+
+def _source_snapshot_model(
+    *,
+    run_id: str,
+    source: FetchedSourceSnapshot,
+) -> ResearchSourceSnapshotModel:
+  values = {
+    "run_id": run_id,
+    "url": source.url,
+    "title": source.title,
+    "content_hash": source.content_hash,
+    "extracted_text": source.extracted_text,
+    "source_metadata": source.metadata,
+  }
+
+  if source.fetched_at is not None:
+    values["fetched_at"] = source.fetched_at
+
+  return ResearchSourceSnapshotModel(**values)
+
+
+def list_source_snapshots(
+    session: Session,
+    *,
+    run_id: str,
+) -> list[SavedSourceSnapshot]:
+  rows = session.scalars(
+    select(ResearchSourceSnapshotModel)
+    .where(ResearchSourceSnapshotModel.run_id == run_id)
+    .order_by(ResearchSourceSnapshotModel.fetched_at.asc())
+  ).all()
+  return [_source_snapshot_from_model(row) for row in rows]
 
 
 def save_candidate_options(

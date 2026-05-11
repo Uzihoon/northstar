@@ -1,11 +1,18 @@
 import hashlib
 import html
 import re
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Callable, Protocol
 
 import httpx
 
-from northstar.research.discovery import SourceSearchClient, discover_sources
+from northstar.research.discovery import (
+  DiscoveredSource,
+  SourceSearchClient,
+  build_seed_sources,
+  discover_sources,
+)
 from northstar.research.schemas import ResearchTarget
 
 
@@ -17,6 +24,19 @@ class FetchResponse(Protocol):
 
 
 FetchGet = Callable[..., FetchResponse]
+
+
+@dataclass(frozen=True)
+class FetchedSourceDocument:
+  url: str
+  title: str | None
+  text: str
+  content_hash: str
+  query: str | None = None
+  source_kind: str = "trusted_url"
+  trust_hint: str | None = None
+  snippet: str = ""
+  fetched_at: datetime | None = None
 
 
 def hash_text(text: str) -> str:
@@ -45,19 +65,38 @@ class TrustedUrlFetcher:
     self.timeout = timeout
     self.get = get or httpx.get
 
+  def fetch_documents(self, *, target: ResearchTarget) -> list[FetchedSourceDocument]:
+    return [
+      self._fetch_source(source)
+      for source in build_seed_sources(target)
+    ]
+
   def fetch_texts(self, *, target: ResearchTarget) -> list[str]:
-    texts: list[str] = []
+    return [
+      document.text
+      for document in self.fetch_documents(target=target)
+    ]
 
-    for url in target.trusted_urls:
-      response = self.get(
-        url,
-        timeout=self.timeout,
-        follow_redirects=True,
-      )
-      response.raise_for_status()
-      texts.append(html_to_text(response.text))
+  def _fetch_source(self, source: DiscoveredSource) -> FetchedSourceDocument:
+    response = self.get(
+      source.url,
+      timeout=self.timeout,
+      follow_redirects=True,
+    )
+    response.raise_for_status()
+    text = html_to_text(response.text)
 
-    return texts
+    return FetchedSourceDocument(
+      url=source.url,
+      title=source.title,
+      text=text,
+      content_hash=hash_text(text),
+      query=source.query,
+      source_kind=source.source_kind,
+      trust_hint=source.trust_hint.value,
+      snippet=source.snippet,
+      fetched_at=datetime.now(timezone.utc),
+    )
 
 
 class DiscoveryUrlFetcher:
@@ -76,17 +115,24 @@ class DiscoveryUrlFetcher:
     self.max_results_per_query = max_results_per_query
     self.max_sources = max_sources
 
-  def fetch_texts(self, *, target: ResearchTarget) -> list[str]:
+  def fetch_documents(self, *, target: ResearchTarget) -> list[FetchedSourceDocument]:
     sources = discover_sources(
       target=target,
       search_client=self.search_client,
       max_results_per_query=self.max_results_per_query,
       max_sources=self.max_sources,
     )
-    fetch_target = target.model_copy(
-      update={"trusted_urls": [source.url for source in sources]}
-    )
-    return TrustedUrlFetcher(
+    trusted_fetcher = TrustedUrlFetcher(
       timeout=self.timeout,
       get=self.get,
-    ).fetch_texts(target=fetch_target)
+    )
+    return [
+      trusted_fetcher._fetch_source(source)
+      for source in sources
+    ]
+
+  def fetch_texts(self, *, target: ResearchTarget) -> list[str]:
+    return [
+      document.text
+      for document in self.fetch_documents(target=target)
+    ]

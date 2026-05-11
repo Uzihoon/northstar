@@ -84,6 +84,32 @@ def test_trusted_url_fetcher_fetches_target_trusted_urls() -> None:
   ]
 
 
+def test_trusted_url_fetcher_returns_source_documents() -> None:
+  response = FakeResponse("<h1>Kyoto Official Travel</h1>")
+
+  def fake_get(url: str, **kwargs):
+    return response
+
+  fetcher = TrustedUrlFetcher(get=fake_get, timeout=12.0)
+
+  documents = fetcher.fetch_documents(
+    target=ResearchTarget(
+      country="Japan",
+      city="Kyoto",
+      themes=[ResearchTheme.cafes],
+      trusted_urls=["https://kyoto.travel/en/#top"],
+    )
+  )
+
+  assert len(documents) == 1
+  assert documents[0].url == "https://kyoto.travel/en/"
+  assert documents[0].title == "https://kyoto.travel/en/"
+  assert documents[0].source_kind == "trusted_url"
+  assert documents[0].trust_hint == "high"
+  assert documents[0].text == "Kyoto Official Travel"
+  assert documents[0].content_hash == hash_text("Kyoto Official Travel")
+
+
 def test_discovery_url_fetcher_fetches_trusted_and_discovered_urls() -> None:
   search_calls: list[dict[str, object]] = []
   get_calls: list[dict[str, object]] = []
@@ -142,5 +168,70 @@ def test_discovery_url_fetcher_fetches_trusted_and_discovered_urls() -> None:
       "url": "https://example.com/cafes",
       "timeout": 9.0,
       "follow_redirects": True,
+    },
+  ]
+
+
+def test_discovery_url_fetcher_preserves_discovered_source_metadata() -> None:
+  responses = [
+    FakeResponse("<h1>Kyoto Official Travel</h1>"),
+    FakeResponse("<p>Independent cafe guide.</p>"),
+  ]
+
+  class FakeSearchClient:
+    def search(self, *, query: str, limit: int) -> list[SourceSearchResult]:
+      return [
+        SourceSearchResult(
+          title="Independent cafe guide",
+          url="https://example.com/cafes?utm_source=test",
+          snippet="Cafe notes.",
+        )
+      ]
+
+  def fake_get(url: str, **kwargs):
+    return responses.pop(0)
+
+  fetcher = DiscoveryUrlFetcher(
+    search_client=FakeSearchClient(),
+    get=fake_get,
+    max_results_per_query=1,
+    max_sources=2,
+  )
+
+  documents = fetcher.fetch_documents(
+    target=ResearchTarget(
+      country="Japan",
+      city="Kyoto",
+      themes=[ResearchTheme.cafes],
+      trusted_urls=["https://kyoto.travel/en/"],
+    )
+  )
+
+  assert [
+    {
+      "url": document.url,
+      "title": document.title,
+      "query": document.query,
+      "source_kind": document.source_kind,
+      "trust_hint": document.trust_hint,
+      "snippet": document.snippet,
+    }
+    for document in documents
+  ] == [
+    {
+      "url": "https://kyoto.travel/en/",
+      "title": "https://kyoto.travel/en/",
+      "query": None,
+      "source_kind": "trusted_url",
+      "trust_hint": "high",
+      "snippet": "Operator supplied trusted URL.",
+    },
+    {
+      "url": "https://example.com/cafes",
+      "title": "Independent cafe guide",
+      "query": "Kyoto Japan official travel cafes",
+      "source_kind": "search_result",
+      "trust_hint": "low",
+      "snippet": "Cafe notes.",
     },
   ]

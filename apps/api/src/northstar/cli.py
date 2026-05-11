@@ -27,7 +27,12 @@ from northstar.rag.retriever import retrieve_travel_context
 from northstar.rag.store import ingest_markdown_document, search_rag_chunks
 from northstar.rag.metadata import build_rag_metadata
 from northstar.research.agent import OllamaResearchAgent
-from northstar.research.discovery import build_seed_sources, build_source_queries
+from northstar.research.discovery import (
+  SourceSearchResult,
+  build_seed_sources,
+  build_source_queries,
+  discover_sources,
+)
 from northstar.research.fetcher import DiscoveryUrlFetcher, TrustedUrlFetcher
 from northstar.research.publisher import publish_stable_notes
 from northstar.research.schemas import ResearchTarget, ResearchTheme, TrustRating
@@ -475,6 +480,50 @@ def plan_research_sources(
     "seed_sources": [
       source.model_dump(mode="json")
       for source in build_seed_sources(target)
+    ],
+  }, indent=2))
+
+@app.command("discover-research-sources")
+def discover_research_sources(
+    city: str,
+    country: str = typer.Option(..., "--country"),
+    theme: list[str] = typer.Option([], "--theme"),
+    trusted_url: list[str] = typer.Option([], "--trusted-url"),
+    max_results_per_query: int = typer.Option(5, "--max-results-per-query"),
+    max_sources: int = typer.Option(12, "--max-sources"),
+) -> None:
+  """Run configured web search and preview discovered research sources."""
+  target = ResearchTarget(
+    country=country,
+    city=city,
+    themes=parse_research_themes(theme),
+    trusted_urls=trusted_url,
+  )
+  settings = get_settings()
+
+  try:
+    search_client = build_source_search_client(settings)
+    if search_client is None:
+      raise SearchConfigurationError(
+        "Set SEARCH_PROVIDER=tavily or brave and the matching API key to discover sources."
+      )
+
+    sources = discover_sources(
+      target=target,
+      search_client=search_client,
+      max_results_per_query=max_results_per_query,
+      max_sources=max_sources,
+    )
+  except (HTTPError, SearchConfigurationError) as exc:
+    typer.secho(str(exc), fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1) from exc
+
+  typer.echo(json.dumps({
+    "target": target.model_dump(mode="json"),
+    "queries": build_source_queries(target),
+    "sources": [
+      source.model_dump(mode="json")
+      for source in sources
     ],
   }, indent=2))
 

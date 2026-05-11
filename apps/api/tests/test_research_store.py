@@ -13,10 +13,13 @@ from northstar.research.schemas import (
   TrustRating,
 )
 from northstar.research.store import (
+  FetchedSourceSnapshot,
   create_research_run,
   get_research_run,
+  list_source_snapshots,
   list_research_runs,
   save_candidate_options,
+  save_source_snapshots,
   search_candidate_options,
 )
 
@@ -49,6 +52,51 @@ def test_create_research_run_persists_target(session: Session) -> None:
   assert loaded.run_id == run.run_id
   assert loaded.target["city"] == "Kyoto"
   assert loaded.status == "created"
+
+
+def test_save_and_list_source_snapshots(session: Session) -> None:
+  run = create_research_run(
+    session,
+    target=ResearchTarget(
+      country="Japan",
+      city="Kyoto",
+      themes=[ResearchTheme.cafes],
+    ),
+    model_name="gemma4:e4b",
+  )
+
+  save_source_snapshots(
+    session,
+    run_id=run.run_id,
+    sources=[
+      FetchedSourceSnapshot(
+        url="https://kyoto.travel/en/",
+        title="Kyoto Official Travel",
+        content_hash="abc123",
+        extracted_text="Kyoto official source text.",
+        metadata={
+          "query": None,
+          "source_kind": "trusted_url",
+          "trust_hint": "high",
+          "snippet": "Operator supplied trusted URL.",
+        },
+      )
+    ],
+  )
+
+  snapshots = list_source_snapshots(session, run_id=run.run_id)
+
+  assert len(snapshots) == 1
+  assert snapshots[0].url == "https://kyoto.travel/en/"
+  assert snapshots[0].title == "Kyoto Official Travel"
+  assert snapshots[0].content_hash == "abc123"
+  assert snapshots[0].extracted_text == "Kyoto official source text."
+  assert snapshots[0].metadata == {
+    "query": None,
+    "source_kind": "trusted_url",
+    "trust_hint": "high",
+    "snippet": "Operator supplied trusted URL.",
+  }
 
 
 def test_search_candidate_options_filters_by_city_category_and_trust(session: Session) -> None:

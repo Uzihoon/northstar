@@ -65,7 +65,7 @@ def build_source_queries(target: ResearchTarget) -> list[str]:
 def build_seed_sources(target: ResearchTarget) -> list[DiscoveredSource]:
   return [
     DiscoveredSource(
-      title=url,
+      title=normalize_source_url(url),
       url=normalize_source_url(url),
       snippet="Operator supplied trusted URL.",
       query=None,

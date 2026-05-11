@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from northstar.db import Base
 from northstar.research.models import ResearchCandidateModel
+from northstar.research.fetcher import FetchedSourceDocument
 from northstar.research.schemas import (
   BlockedResearchItem,
   CandidateOption,
@@ -18,7 +19,7 @@ from northstar.research.schemas import (
   TrustRating,
 )
 from northstar.research.service import run_research_pipeline
-from northstar.research.store import get_research_run
+from northstar.research.store import get_research_run, list_source_snapshots
 
 
 @pytest.fixture()
@@ -32,7 +33,11 @@ def session() -> Iterator[Session]:
 
 
 class FakeResearchAgent:
+  def __init__(self) -> None:
+    self.source_texts: list[str] = []
+
   def research(self, *, target: ResearchTarget, source_texts: list[str]) -> ResearchDraft:
+    self.source_texts = source_texts
     return ResearchDraft(
       target=target,
       stable_notes=[
@@ -79,12 +84,24 @@ class FakeResearchAgent:
 
 
 class FakeFetcher:
-  def fetch_texts(self, *, target: ResearchTarget) -> list[str]:
-    return ["Kyoto cafe source text."]
+  def fetch_documents(self, *, target: ResearchTarget) -> list[FetchedSourceDocument]:
+    return [
+      FetchedSourceDocument(
+        url="https://example.com/kyoto",
+        title="Kyoto guide",
+        text="Kyoto cafe source text.",
+        content_hash="abc123",
+        query="Kyoto Japan official travel cafes",
+        source_kind="search_result",
+        trust_hint="low",
+        snippet="Cafe source snippet.",
+      )
+    ]
 
 
 def test_run_research_pipeline_stores_non_blocked_candidates(session: Session) -> None:
   published_notes = []
+  research_agent = FakeResearchAgent()
 
   def fake_note_publisher(*, session, target, notes):
     published_notes.append({
@@ -107,13 +124,14 @@ def test_run_research_pipeline_stores_non_blocked_candidates(session: Session) -
     ),
     model_name="test-model",
     fetcher=FakeFetcher(),
-    research_agent=FakeResearchAgent(),
+    research_agent=research_agent,
     publish_notes=True,
     note_publisher=fake_note_publisher,
   )
 
   run = get_research_run(session, run_id=result.run.run_id)
   candidates = session.scalars(select(ResearchCandidateModel)).all()
+  source_snapshots = list_source_snapshots(session, run_id=result.run.run_id)
 
   assert result.run.status == "completed"
   assert result.validation.passed is True
@@ -121,6 +139,7 @@ def test_run_research_pipeline_stores_non_blocked_candidates(session: Session) -
   assert run.status == "completed"
   assert run.report == {
     "stable_notes": 1,
+    "source_snapshots": 1,
     "candidates": 1,
     "blocked_items": 2,
     "publish_notes": True,
@@ -142,5 +161,10 @@ def test_run_research_pipeline_stores_non_blocked_candidates(session: Session) -
     ],
   }
   assert [candidate.name for candidate in candidates] == ["Quiet Coffee"]
+  assert len(source_snapshots) == 1
+  assert source_snapshots[0].url == "https://example.com/kyoto"
+  assert source_snapshots[0].metadata["query"] == "Kyoto Japan official travel cafes"
+  assert "Source URL: https://example.com/kyoto" in research_agent.source_texts[0]
+  assert "Kyoto cafe source text." in research_agent.source_texts[0]
   assert published_notes[0]["target"].city == "Kyoto"
   assert published_notes[0]["notes"][0].title == "Kyoto cafe strategy"

@@ -3,6 +3,7 @@ from typing import Any, Callable
 
 from sqlalchemy.orm import Session
 
+from northstar.research.fetcher import FetchedSourceDocument, hash_text
 from northstar.research.ports import ResearchAgent, ResearchFetcher
 from northstar.research.schemas import (
   ResearchDraft,
@@ -11,9 +12,11 @@ from northstar.research.schemas import (
   TrustRating,
 )
 from northstar.research.store import (
+  FetchedSourceSnapshot,
   SavedResearchRun,
   create_research_run,
   save_candidate_options,
+  save_source_snapshots,
   update_research_run_status,
 )
 from northstar.research.validator import validate_research_draft
@@ -31,6 +34,7 @@ class ResearchPipelineResult:
 def _build_completion_report(
     *,
     draft: ResearchDraft,
+    source_snapshot_count: int,
     publish_notes: bool,
     published_notes: list[Any],
 ) -> dict[str, object]:
@@ -58,6 +62,7 @@ def _build_completion_report(
 
   return {
     "stable_notes": len(draft.stable_notes),
+    "source_snapshots": source_snapshot_count,
     "candidates": len(publishable_candidates),
     "blocked_items": len(draft.blocked_items) + len(blocked_candidates),
     "publish_notes": publish_notes,
@@ -81,6 +86,62 @@ def _build_completion_report(
   }
 
 
+def _fetch_source_documents(
+    *,
+    fetcher: ResearchFetcher,
+    target: ResearchTarget,
+) -> list[FetchedSourceDocument]:
+  if hasattr(fetcher, "fetch_documents"):
+    return fetcher.fetch_documents(target=target)
+
+  return [
+    FetchedSourceDocument(
+      url=f"source-{index + 1}",
+      title=f"Source {index + 1}",
+      text=text,
+      content_hash=hash_text(text),
+      source_kind="legacy_text",
+    )
+    for index, text in enumerate(fetcher.fetch_texts(target=target))
+  ]
+
+
+def _snapshot_from_document(document: FetchedSourceDocument) -> FetchedSourceSnapshot:
+  return FetchedSourceSnapshot(
+    url=document.url,
+    title=document.title,
+    content_hash=document.content_hash,
+    extracted_text=document.text,
+    fetched_at=document.fetched_at,
+    metadata={
+      "query": document.query,
+      "source_kind": document.source_kind,
+      "trust_hint": document.trust_hint,
+      "snippet": document.snippet,
+    },
+  )
+
+
+def _format_source_document_for_agent(document: FetchedSourceDocument) -> str:
+  metadata_lines = [
+    f"Source URL: {document.url}",
+    f"Source title: {document.title or 'Untitled'}",
+    f"Source kind: {document.source_kind}",
+  ]
+
+  if document.query:
+    metadata_lines.append(f"Discovery query: {document.query}")
+
+  if document.trust_hint:
+    metadata_lines.append(f"Trust hint: {document.trust_hint}")
+
+  return "\n".join([
+    *metadata_lines,
+    "",
+    document.text,
+  ])
+
+
 def run_research_pipeline(
     *,
     session: Session,
@@ -92,7 +153,19 @@ def run_research_pipeline(
     note_publisher: NotePublisher | None = None,
 ) -> ResearchPipelineResult:
   run = create_research_run(session, target=target, model_name=model_name)
-  source_texts = fetcher.fetch_texts(target=target)
+  source_documents = _fetch_source_documents(fetcher=fetcher, target=target)
+  source_snapshots = save_source_snapshots(
+    session,
+    run_id=run.run_id,
+    sources=[
+      _snapshot_from_document(document)
+      for document in source_documents
+    ],
+  )
+  source_texts = [
+    _format_source_document_for_agent(document)
+    for document in source_documents
+  ]
   draft = research_agent.research(target=target, source_texts=source_texts)
   validation = validate_research_draft(draft)
 
@@ -134,6 +207,7 @@ def run_research_pipeline(
     status="completed",
     report=_build_completion_report(
       draft=draft,
+      source_snapshot_count=len(source_snapshots),
       publish_notes=publish_notes,
       published_notes=published_notes,
     ),

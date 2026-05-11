@@ -43,6 +43,7 @@ class ResearchSourceSnapshotModel(Base):
   title: Mapped[str | None] = mapped_column(Text, nullable=True)
   content_hash: Mapped[str] = mapped_column(String(64), index=True)
   extracted_text: Mapped[str] = mapped_column(Text)
+  source_metadata: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
   fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
   run: Mapped[ResearchRunModel] = relationship(back_populates="source_snapshots")
