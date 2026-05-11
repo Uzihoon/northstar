@@ -6,6 +6,7 @@ from northstar.research.discovery import SourceSearchResult
 from northstar.research.search_client import (
   BraveSearchClient,
   SearchConfigurationError,
+  TavilySearchClient,
   build_source_search_client,
 )
 
@@ -95,4 +96,84 @@ def test_build_source_search_client_requires_brave_key() -> None:
   )
 
   with pytest.raises(SearchConfigurationError, match="BRAVE_SEARCH_API_KEY"):
+    build_source_search_client(settings)
+
+
+def test_tavily_search_client_maps_results() -> None:
+  calls: list[dict[str, object]] = []
+  response = FakeResponse({
+    "results": [
+      {
+        "title": "Kyoto Cafes",
+        "url": "https://example.com/kyoto-cafes",
+        "content": "A focused cafe guide for Kyoto.",
+      }
+    ]
+  })
+
+  def fake_post(url: str, **kwargs):
+    calls.append({"url": url, **kwargs})
+    return response
+
+  client = TavilySearchClient(
+    api_key="tvly-secret",
+    post=fake_post,
+    timeout=8.0,
+    search_depth="basic",
+    country="japan",
+  )
+
+  results = client.search(query="Kyoto Japan cafes", limit=3)
+
+  assert results == [
+    SourceSearchResult(
+      title="Kyoto Cafes",
+      url="https://example.com/kyoto-cafes",
+      snippet="A focused cafe guide for Kyoto.",
+    )
+  ]
+  assert response.raise_for_status_called is True
+  assert calls == [
+    {
+      "url": "https://api.tavily.com/search",
+      "headers": {
+        "Authorization": "Bearer tvly-secret",
+        "Content-Type": "application/json",
+      },
+      "json": {
+        "query": "Kyoto Japan cafes",
+        "max_results": 3,
+        "search_depth": "basic",
+        "topic": "general",
+        "include_answer": False,
+        "include_raw_content": False,
+        "country": "japan",
+      },
+      "timeout": 8.0,
+    }
+  ]
+
+
+def test_build_source_search_client_returns_tavily_client() -> None:
+  settings = SimpleNamespace(
+    search_provider="tavily",
+    tavily_api_key="tvly-secret",
+    tavily_search_depth="basic",
+    tavily_country="japan",
+  )
+
+  client = build_source_search_client(settings)
+
+  assert isinstance(client, TavilySearchClient)
+
+
+def test_build_source_search_client_requires_tavily_key() -> None:
+  settings = SimpleNamespace(
+    search_provider="tavily",
+    tavily_api_key=None,
+    tavily_search_depth="basic",
+    tavily_country=None,
+  )
+
+  with pytest.raises(SearchConfigurationError, match="TAVILY_API_KEY"):
     build_source_search_client(settings)

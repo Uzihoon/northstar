@@ -414,7 +414,7 @@ def research_city(
       search_client = build_source_search_client(settings)
       if search_client is None:
         raise SearchConfigurationError(
-          "Set SEARCH_PROVIDER=brave and BRAVE_SEARCH_API_KEY to use --web-search."
+          "Set SEARCH_PROVIDER=tavily or brave and the matching API key to use --web-search."
         )
       fetcher = DiscoveryUrlFetcher(search_client=search_client)
 

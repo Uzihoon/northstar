@@ -20,6 +20,9 @@ class Settings(BaseSettings):
   brave_search_api_key: str | None = None
   brave_search_country: str = "us"
   brave_search_lang: str = "en"
+  tavily_api_key: str | None = None
+  tavily_search_depth: str = "basic"
+  tavily_country: str | None = None
 
 @lru_cache
 def get_settings() -> Settings:

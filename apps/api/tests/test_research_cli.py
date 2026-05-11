@@ -290,7 +290,7 @@ def test_research_city_web_search_requires_configured_provider(monkeypatch) -> N
   )
 
   assert result.exit_code == 1
-  assert "Set SEARCH_PROVIDER=brave and BRAVE_SEARCH_API_KEY" in result.stderr
+  assert "Set SEARCH_PROVIDER=tavily or brave" in result.stderr
 
 
 def test_list_research_runs_prints_saved_runs(monkeypatch) -> None:
