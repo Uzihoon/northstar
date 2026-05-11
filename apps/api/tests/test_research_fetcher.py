@@ -1,4 +1,10 @@
-from northstar.research.fetcher import TrustedUrlFetcher, hash_text, html_to_text
+from northstar.research.discovery import SourceSearchResult
+from northstar.research.fetcher import (
+  DiscoveryUrlFetcher,
+  TrustedUrlFetcher,
+  hash_text,
+  html_to_text,
+)
 from northstar.research.schemas import ResearchTarget, ResearchTheme
 
 
@@ -73,6 +79,68 @@ def test_trusted_url_fetcher_fetches_target_trusted_urls() -> None:
     {
       "url": "https://example.com/cafes",
       "timeout": 12.0,
+      "follow_redirects": True,
+    },
+  ]
+
+
+def test_discovery_url_fetcher_fetches_trusted_and_discovered_urls() -> None:
+  search_calls: list[dict[str, object]] = []
+  get_calls: list[dict[str, object]] = []
+  responses = [
+    FakeResponse("<h1>Kyoto Official Travel</h1>"),
+    FakeResponse("<p>Independent cafe guide.</p>"),
+  ]
+
+  class FakeSearchClient:
+    def search(self, *, query: str, limit: int) -> list[SourceSearchResult]:
+      search_calls.append({"query": query, "limit": limit})
+      return [
+        SourceSearchResult(
+          title="Independent cafe guide",
+          url="https://example.com/cafes?utm_source=test",
+          snippet="Cafe notes.",
+        )
+      ]
+
+  def fake_get(url: str, **kwargs):
+    get_calls.append({"url": url, **kwargs})
+    return responses.pop(0)
+
+  fetcher = DiscoveryUrlFetcher(
+    search_client=FakeSearchClient(),
+    get=fake_get,
+    timeout=9.0,
+    max_results_per_query=1,
+    max_sources=2,
+  )
+
+  texts = fetcher.fetch_texts(
+    target=ResearchTarget(
+      country="Japan",
+      city="Kyoto",
+      themes=[ResearchTheme.cafes],
+      trusted_urls=["https://kyoto.travel/en/"],
+    )
+  )
+
+  assert texts == [
+    "Kyoto Official Travel",
+    "Independent cafe guide.",
+  ]
+  assert search_calls == [
+    {"query": "Kyoto Japan official travel cafes", "limit": 1},
+    {"query": "Kyoto Japan cafes guide", "limit": 1},
+  ]
+  assert get_calls == [
+    {
+      "url": "https://kyoto.travel/en/",
+      "timeout": 9.0,
+      "follow_redirects": True,
+    },
+    {
+      "url": "https://example.com/cafes",
+      "timeout": 9.0,
       "follow_redirects": True,
     },
   ]

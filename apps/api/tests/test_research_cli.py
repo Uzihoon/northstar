@@ -74,6 +74,47 @@ def test_research_city_rejects_invalid_theme() -> None:
   assert "Invalid research theme: nightlife" in result.stderr
 
 
+def test_plan_research_sources_prints_query_plan() -> None:
+  result = runner.invoke(
+    cli_module.app,
+    [
+      "plan-research-sources",
+      "Kyoto",
+      "--country",
+      "Japan",
+      "--theme",
+      "cafes",
+      "--trusted-url",
+      "https://kyoto.travel/en/",
+    ],
+  )
+
+  assert result.exit_code == 0
+  payload = json.loads(result.output)
+  assert payload == {
+    "target": {
+      "country": "Japan",
+      "city": "Kyoto",
+      "themes": ["cafes"],
+      "trusted_urls": ["https://kyoto.travel/en/"],
+    },
+    "queries": [
+      "Kyoto Japan official travel cafes",
+      "Kyoto Japan cafes guide",
+    ],
+    "seed_sources": [
+      {
+        "title": "https://kyoto.travel/en/",
+        "url": "https://kyoto.travel/en/",
+        "snippet": "Operator supplied trusted URL.",
+        "query": None,
+        "source_kind": "trusted_url",
+        "trust_hint": "high",
+      }
+    ],
+  }
+
+
 def test_research_city_runs_pipeline_and_prints_summary(monkeypatch) -> None:
   captured = {}
 

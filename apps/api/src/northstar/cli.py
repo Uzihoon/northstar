@@ -27,6 +27,7 @@ from northstar.rag.retriever import retrieve_travel_context
 from northstar.rag.store import ingest_markdown_document, search_rag_chunks
 from northstar.rag.metadata import build_rag_metadata
 from northstar.research.agent import OllamaResearchAgent
+from northstar.research.discovery import build_seed_sources, build_source_queries
 from northstar.research.fetcher import TrustedUrlFetcher
 from northstar.research.publisher import publish_stable_notes
 from northstar.research.schemas import ResearchTarget, ResearchTheme, TrustRating
@@ -436,6 +437,30 @@ def research_city(
     "model_name": result.run.model_name,
     "report": result.run.report,
     "validation": result.validation.model_dump(mode="json"),
+  }, indent=2))
+
+@app.command("plan-research-sources")
+def plan_research_sources(
+    city: str,
+    country: str = typer.Option(..., "--country"),
+    theme: list[str] = typer.Option([], "--theme"),
+    trusted_url: list[str] = typer.Option([], "--trusted-url"),
+) -> None:
+  """Print the query/source plan that a research run should start from."""
+  target = ResearchTarget(
+    country=country,
+    city=city,
+    themes=parse_research_themes(theme),
+    trusted_urls=trusted_url,
+  )
+
+  typer.echo(json.dumps({
+    "target": target.model_dump(mode="json"),
+    "queries": build_source_queries(target),
+    "seed_sources": [
+      source.model_dump(mode="json")
+      for source in build_seed_sources(target)
+    ],
   }, indent=2))
 
 @app.command("list-research-runs")

@@ -5,6 +5,7 @@ from typing import Callable, Protocol
 
 import httpx
 
+from northstar.research.discovery import SourceSearchClient, discover_sources
 from northstar.research.schemas import ResearchTarget
 
 
@@ -57,3 +58,35 @@ class TrustedUrlFetcher:
       texts.append(html_to_text(response.text))
 
     return texts
+
+
+class DiscoveryUrlFetcher:
+  def __init__(
+      self,
+      *,
+      search_client: SourceSearchClient,
+      timeout: float = 20.0,
+      get: FetchGet | None = None,
+      max_results_per_query: int = 5,
+      max_sources: int = 12,
+  ) -> None:
+    self.search_client = search_client
+    self.timeout = timeout
+    self.get = get or httpx.get
+    self.max_results_per_query = max_results_per_query
+    self.max_sources = max_sources
+
+  def fetch_texts(self, *, target: ResearchTarget) -> list[str]:
+    sources = discover_sources(
+      target=target,
+      search_client=self.search_client,
+      max_results_per_query=self.max_results_per_query,
+      max_sources=self.max_sources,
+    )
+    fetch_target = target.model_copy(
+      update={"trusted_urls": [source.url for source in sources]}
+    )
+    return TrustedUrlFetcher(
+      timeout=self.timeout,
+      get=self.get,
+    ).fetch_texts(target=fetch_target)
