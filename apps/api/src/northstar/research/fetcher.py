@@ -39,6 +39,18 @@ class FetchedSourceDocument:
   fetched_at: datetime | None = None
 
 
+@dataclass(frozen=True)
+class SourceFetchFailure:
+  url: str
+  title: str | None
+  error: str
+  query: str | None = None
+  source_kind: str = "trusted_url"
+  trust_hint: str | None = None
+  snippet: str = ""
+  fetched_at: datetime | None = None
+
+
 def hash_text(text: str) -> str:
   return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
@@ -64,12 +76,20 @@ class TrustedUrlFetcher:
   ) -> None:
     self.timeout = timeout
     self.get = get or httpx.get
+    self.fetch_failures: list[SourceFetchFailure] = []
 
   def fetch_documents(self, *, target: ResearchTarget) -> list[FetchedSourceDocument]:
-    return [
-      self._fetch_source(source)
-      for source in build_seed_sources(target)
-    ]
+    self.fetch_failures = []
+    documents: list[FetchedSourceDocument] = []
+
+    for source in build_seed_sources(target):
+      document = self._fetch_source(source)
+      if document is None:
+        continue
+
+      documents.append(document)
+
+    return documents
 
   def fetch_texts(self, *, target: ResearchTarget) -> list[str]:
     return [
@@ -77,13 +97,18 @@ class TrustedUrlFetcher:
       for document in self.fetch_documents(target=target)
     ]
 
-  def _fetch_source(self, source: DiscoveredSource) -> FetchedSourceDocument:
-    response = self.get(
-      source.url,
-      timeout=self.timeout,
-      follow_redirects=True,
-    )
-    response.raise_for_status()
+  def _fetch_source(self, source: DiscoveredSource) -> FetchedSourceDocument | None:
+    try:
+      response = self.get(
+        source.url,
+        timeout=self.timeout,
+        follow_redirects=True,
+      )
+      response.raise_for_status()
+    except httpx.HTTPError as exc:
+      self.fetch_failures.append(_fetch_failure_from_exception(source, exc))
+      return None
+
     text = html_to_text(response.text)
 
     return FetchedSourceDocument(
@@ -114,6 +139,7 @@ class DiscoveryUrlFetcher:
     self.get = get or httpx.get
     self.max_results_per_query = max_results_per_query
     self.max_sources = max_sources
+    self.fetch_failures: list[SourceFetchFailure] = []
 
   def fetch_documents(self, *, target: ResearchTarget) -> list[FetchedSourceDocument]:
     sources = discover_sources(
@@ -126,13 +152,44 @@ class DiscoveryUrlFetcher:
       timeout=self.timeout,
       get=self.get,
     )
-    return [
-      trusted_fetcher._fetch_source(source)
-      for source in sources
-    ]
+    documents: list[FetchedSourceDocument] = []
+
+    for source in sources:
+      document = trusted_fetcher._fetch_source(source)
+      if document is None:
+        continue
+
+      documents.append(document)
+
+    self.fetch_failures = trusted_fetcher.fetch_failures
+    return documents
 
   def fetch_texts(self, *, target: ResearchTarget) -> list[str]:
     return [
       document.text
-      for document in self.fetch_documents(target=target)
-    ]
+    for document in self.fetch_documents(target=target)
+  ]
+
+
+def _fetch_failure_from_exception(
+    source: DiscoveredSource,
+    exc: httpx.HTTPError,
+) -> SourceFetchFailure:
+  status_code = None
+  if isinstance(exc, httpx.HTTPStatusError):
+    status_code = exc.response.status_code
+
+  message = str(exc)
+  if status_code is not None and str(status_code) not in message:
+    message = f"{message} ({status_code})"
+
+  return SourceFetchFailure(
+    url=source.url,
+    title=source.title,
+    error=message,
+    query=source.query,
+    source_kind=source.source_kind,
+    trust_hint=source.trust_hint.value,
+    snippet=source.snippet,
+    fetched_at=datetime.now(timezone.utc),
+  )

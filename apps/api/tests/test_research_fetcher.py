@@ -1,3 +1,5 @@
+import httpx
+
 from northstar.research.discovery import SourceSearchResult
 from northstar.research.fetcher import (
   DiscoveryUrlFetcher,
@@ -15,6 +17,25 @@ class FakeResponse:
 
   def raise_for_status(self) -> None:
     self.raise_for_status_called = True
+
+
+class FakeFailedResponse:
+  text = ""
+
+  def __init__(self, *, url: str, status_code: int = 502) -> None:
+    self.request = httpx.Request("GET", url)
+    self.response = httpx.Response(
+      status_code,
+      request=self.request,
+      text="upstream temporarily failed",
+    )
+
+  def raise_for_status(self) -> None:
+    raise httpx.HTTPStatusError(
+      "Server error",
+      request=self.request,
+      response=self.response,
+    )
 
 
 def test_hash_text_is_stable_for_same_text() -> None:
@@ -108,6 +129,36 @@ def test_trusted_url_fetcher_returns_source_documents() -> None:
   assert documents[0].trust_hint == "high"
   assert documents[0].text == "Kyoto Official Travel"
   assert documents[0].content_hash == hash_text("Kyoto Official Travel")
+
+
+def test_trusted_url_fetcher_skips_failed_sources_and_records_failures() -> None:
+  responses = [
+    FakeFailedResponse(url="https://visit.example.com"),
+    FakeResponse("<h1>Seoul Official Guide</h1>"),
+  ]
+
+  def fake_get(url: str, **kwargs):
+    return responses.pop(0)
+
+  fetcher = TrustedUrlFetcher(get=fake_get)
+
+  documents = fetcher.fetch_documents(
+    target=ResearchTarget(
+      country="South Korea",
+      city="Seoul",
+      themes=[ResearchTheme.overview],
+      trusted_urls=[
+        "https://visit.example.com",
+        "https://backup.example.com",
+      ],
+    )
+  )
+
+  assert [document.url for document in documents] == ["https://backup.example.com"]
+  assert documents[0].text == "Seoul Official Guide"
+  assert len(fetcher.fetch_failures) == 1
+  assert fetcher.fetch_failures[0].url == "https://visit.example.com"
+  assert "502" in fetcher.fetch_failures[0].error
 
 
 def test_discovery_url_fetcher_fetches_trusted_and_discovered_urls() -> None:

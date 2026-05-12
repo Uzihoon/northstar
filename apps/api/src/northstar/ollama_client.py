@@ -132,11 +132,12 @@ class OllamaClient:
       messages: list[dict[str, Any]],
       model: str,
       response_format: dict[str, Any],
+      timeout: float | httpx.Timeout | None = None,
   ) -> dict[str, Any]:
     payload = self._request(
       "POST",
       "/api/chat",
-      timeout=httpx.Timeout(connect=5.0, read=300.0, write=30.0, pool=5.0),
+      timeout=timeout or httpx.Timeout(connect=5.0, read=300.0, write=30.0, pool=5.0),
       json={
         "model": model,
         "messages": messages,

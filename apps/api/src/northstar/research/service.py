@@ -37,6 +37,7 @@ def _build_completion_report(
     draft: ResearchDraft,
     source_snapshot_count: int,
     critique: ResearchCritique | None,
+    source_fetch_failures: list[dict[str, object]],
     publish_notes: bool,
     published_notes: list[Any],
 ) -> dict[str, object]:
@@ -62,7 +63,7 @@ def _build_completion_report(
     for candidate in blocked_candidates
   ]
 
-  return {
+  report = {
     "stable_notes": len(draft.stable_notes),
     "source_snapshots": source_snapshot_count,
     "critic": _critic_report(critique),
@@ -87,6 +88,11 @@ def _build_completion_report(
     ],
     "blocked_item_details": blocked_item_details,
   }
+
+  if source_fetch_failures:
+    report["source_fetch_failures"] = source_fetch_failures
+
+  return report
 
 
 def _critic_report(critique: ResearchCritique | None) -> dict[str, object] | None:
@@ -158,6 +164,23 @@ def _format_source_document_for_agent(document: FetchedSourceDocument) -> str:
   ])
 
 
+def _fetch_failures_from_fetcher(fetcher: ResearchFetcher) -> list[dict[str, object]]:
+  fetch_failures = getattr(fetcher, "fetch_failures", [])
+
+  return [
+    {
+      "url": failure.url,
+      "title": failure.title,
+      "error": failure.error,
+      "query": failure.query,
+      "source_kind": failure.source_kind,
+      "trust_hint": failure.trust_hint,
+      "snippet": failure.snippet,
+    }
+    for failure in fetch_failures
+  ]
+
+
 def run_research_pipeline(
     *,
     session: Session,
@@ -227,6 +250,7 @@ def _execute_research_pipeline(
     note_publisher: NotePublisher | None,
 ) -> ResearchPipelineResult:
   source_documents = _fetch_source_documents(fetcher=fetcher, target=target)
+  source_fetch_failures = _fetch_failures_from_fetcher(fetcher)
   source_snapshots = save_source_snapshots(
     session,
     run_id=run.run_id,
@@ -259,6 +283,7 @@ def _execute_research_pipeline(
       status="failed",
       report={
         "source_snapshots": len(source_snapshots),
+        "source_fetch_failures": source_fetch_failures,
         "critic": _critic_report(critique),
         "validation": validation.model_dump(mode="json"),
       },
@@ -294,6 +319,7 @@ def _execute_research_pipeline(
       draft=draft,
       source_snapshot_count=len(source_snapshots),
       critique=critique,
+      source_fetch_failures=source_fetch_failures,
       publish_notes=publish_notes,
       published_notes=published_notes,
     ),

@@ -22,7 +22,7 @@ class Settings(BaseSettings):
   brave_search_lang: str = "en"
   tavily_api_key: str | None = None
   tavily_search_depth: str = "basic"
-  tavily_country: str | None = None
+  research_ollama_read_timeout_seconds: float = 3600.0
 
 @lru_cache
 def get_settings() -> Settings:

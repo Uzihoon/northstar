@@ -120,7 +120,6 @@ def test_discover_research_sources_prints_search_results(monkeypatch) -> None:
     search_provider = "tavily"
     tavily_api_key = "secret"
     tavily_search_depth = "basic"
-    tavily_country = "japan"
 
   class FakeSearchClient:
     def search(self, *, query: str, limit: int):
@@ -181,19 +180,34 @@ def test_research_city_runs_pipeline_and_prints_summary(monkeypatch) -> None:
 
   class FakeSettings:
     default_model = "test-model"
+    research_ollama_read_timeout_seconds = 1800.0
 
   class FakeTrustedUrlFetcher:
     pass
 
   class FakeOllamaResearchAgent:
-    def __init__(self, *, client, model: str) -> None:
+    def __init__(
+        self,
+        *,
+        client,
+        model: str,
+        read_timeout_seconds: float | None = None,
+    ) -> None:
       self.client = client
       self.model = model
+      self.read_timeout_seconds = read_timeout_seconds
 
   class FakeOllamaResearchCritic:
-    def __init__(self, *, client, model: str) -> None:
+    def __init__(
+        self,
+        *,
+        client,
+        model: str,
+        read_timeout_seconds: float | None = None,
+    ) -> None:
       self.client = client
       self.model = model
+      self.read_timeout_seconds = read_timeout_seconds
 
   def fake_run_research_pipeline(**kwargs):
     captured.update(kwargs)
@@ -244,6 +258,8 @@ def test_research_city_runs_pipeline_and_prints_summary(monkeypatch) -> None:
   assert isinstance(captured["fetcher"], FakeTrustedUrlFetcher)
   assert isinstance(captured["research_agent"], FakeOllamaResearchAgent)
   assert isinstance(captured["critic"], FakeOllamaResearchCritic)
+  assert captured["research_agent"].read_timeout_seconds == 1800.0
+  assert captured["critic"].read_timeout_seconds == 1800.0
 
   payload = json.loads(result.output)
   assert payload == {
@@ -278,15 +294,23 @@ def test_research_city_uses_discovery_fetcher_when_web_search_enabled(monkeypatc
     brave_search_api_key = "secret"
     brave_search_country = "us"
     brave_search_lang = "en"
+    research_ollama_read_timeout_seconds = 1800.0
 
   class FakeDiscoveryUrlFetcher:
     def __init__(self, *, search_client) -> None:
       self.search_client = search_client
 
   class FakeOllamaResearchAgent:
-    def __init__(self, *, client, model: str) -> None:
+    def __init__(
+        self,
+        *,
+        client,
+        model: str,
+        read_timeout_seconds: float | None = None,
+    ) -> None:
       self.client = client
       self.model = model
+      self.read_timeout_seconds = read_timeout_seconds
 
   def fake_build_source_search_client(settings):
     assert settings.search_provider == "brave"
@@ -331,6 +355,7 @@ def test_research_city_uses_discovery_fetcher_when_web_search_enabled(monkeypatc
   assert result.exit_code == 0
   assert isinstance(captured["fetcher"], FakeDiscoveryUrlFetcher)
   assert captured["fetcher"].search_client == "search-client"
+  assert captured["research_agent"].read_timeout_seconds == 1800.0
 
 
 def test_research_city_web_search_requires_configured_provider(monkeypatch) -> None:

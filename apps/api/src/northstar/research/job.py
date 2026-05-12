@@ -51,10 +51,12 @@ def run_research_job(
         research_agent=OllamaResearchAgent(
           client=client,
           model=model,
+          read_timeout_seconds=settings.research_ollama_read_timeout_seconds,
         ),
         critic=OllamaResearchCritic(
           client=client,
           model=model,
+          read_timeout_seconds=settings.research_ollama_read_timeout_seconds,
         ),
         publish_notes=publish_notes,
         note_publisher=lambda session, target, notes: publish_stable_notes(

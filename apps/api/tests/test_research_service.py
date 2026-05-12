@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from northstar.db import Base
 from northstar.research.models import ResearchCandidateModel
-from northstar.research.fetcher import FetchedSourceDocument
+from northstar.research.fetcher import FetchedSourceDocument, SourceFetchFailure
 from northstar.research.schemas import (
   BlockedResearchItem,
   CandidateOption,
@@ -99,6 +99,19 @@ class FakeFetcher:
         snippet="Cafe source snippet.",
       )
     ]
+
+
+class FakeFetcherWithFailure(FakeFetcher):
+  fetch_failures = [
+    SourceFetchFailure(
+      url="https://example.com/unavailable",
+      title="Unavailable guide",
+      error="Server error (502)",
+      source_kind="trusted_url",
+      trust_hint="high",
+      snippet="Operator supplied trusted URL.",
+    )
+  ]
 
 
 class FakeCritic:
@@ -241,3 +254,31 @@ def test_run_existing_research_pipeline_uses_existing_run_id(session: Session) -
 
   assert result.run.run_id == run.run_id
   assert result.run.status == "completed"
+
+
+def test_run_research_pipeline_reports_source_fetch_failures(session: Session) -> None:
+  result = run_research_pipeline(
+    session=session,
+    target=ResearchTarget(
+      country="Japan",
+      city="Kyoto",
+      themes=[ResearchTheme.cafes],
+    ),
+    model_name="test-model",
+    fetcher=FakeFetcherWithFailure(),
+    research_agent=FakeResearchAgent(),
+    critic=FakeCritic(),
+  )
+
+  assert result.run.status == "completed"
+  assert result.run.report["source_fetch_failures"] == [
+    {
+      "url": "https://example.com/unavailable",
+      "title": "Unavailable guide",
+      "error": "Server error (502)",
+      "query": None,
+      "source_kind": "trusted_url",
+      "trust_hint": "high",
+      "snippet": "Operator supplied trusted URL.",
+    }
+  ]

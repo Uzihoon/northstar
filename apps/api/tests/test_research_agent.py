@@ -15,11 +15,13 @@ class FakeStructuredClient:
       messages: list[dict[str, object]],
       model: str,
       response_format: dict[str, object],
+      timeout: object | None = None,
   ) -> dict[str, object]:
     self.calls.append({
       "messages": messages,
       "model": model,
       "response_format": response_format,
+      "timeout": timeout,
     })
     return self.payload
 
@@ -98,3 +100,28 @@ def test_ollama_research_agent_wraps_invalid_structured_output() -> None:
       ),
       source_texts=["source"],
     )
+
+
+def test_ollama_research_agent_uses_research_read_timeout() -> None:
+  target = ResearchTarget(
+    country="Japan",
+    city="Kyoto",
+    themes=[ResearchTheme.cafes],
+  )
+  client = FakeStructuredClient(
+    payload={
+      "target": target.model_dump(mode="json"),
+      "stable_notes": [],
+      "candidates": [],
+      "blocked_items": [],
+    }
+  )
+  agent = OllamaResearchAgent(
+    client=client,
+    model="gemma4:e4b",
+    read_timeout_seconds=3600.0,
+  )
+
+  agent.research(target=target, source_texts=["source"])
+
+  assert client.calls[0]["timeout"].read == 3600.0

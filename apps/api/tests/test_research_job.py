@@ -14,6 +14,7 @@ class FakeSettings:
   embedding_model = "embed-model"
   embedding_dimensions = 1024
   search_provider = "none"
+  research_ollama_read_timeout_seconds = 1800.0
 
 
 def test_run_research_job_executes_existing_run(monkeypatch) -> None:
@@ -48,6 +49,8 @@ def test_run_research_job_executes_existing_run(monkeypatch) -> None:
   assert captured["fetcher"].__class__.__name__ == "TrustedUrlFetcher"
   assert captured["research_agent"].__class__.__name__ == "OllamaResearchAgent"
   assert captured["critic"].__class__.__name__ == "OllamaResearchCritic"
+  assert captured["research_agent"].read_timeout_seconds == 1800.0
+  assert captured["critic"].read_timeout_seconds == 1800.0
   assert captured["publish_notes"] is False
 
 

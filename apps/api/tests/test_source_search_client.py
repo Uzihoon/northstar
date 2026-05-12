@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+import httpx
 import pytest
 
 from northstar.research.discovery import SourceSearchResult
@@ -21,6 +22,28 @@ class FakeResponse:
 
   def json(self) -> dict[str, object]:
     return self.payload
+
+
+class FakeFailedResponse:
+  def __init__(self, *, status_code: int, text: str) -> None:
+    self.status_code = status_code
+    self.text = text
+    self.reason_phrase = "Bad Request"
+    self.request = httpx.Request("POST", "https://api.tavily.com/search")
+
+  def raise_for_status(self) -> None:
+    raise httpx.HTTPStatusError(
+      "Client error '400 Bad Request'",
+      request=self.request,
+      response=httpx.Response(
+        self.status_code,
+        text=self.text,
+        request=self.request,
+      ),
+    )
+
+  def json(self) -> dict[str, object]:
+    return {}
 
 
 def test_brave_search_client_maps_web_results() -> None:
@@ -120,7 +143,6 @@ def test_tavily_search_client_maps_results() -> None:
     post=fake_post,
     timeout=8.0,
     search_depth="basic",
-    country="japan",
   )
 
   results = client.search(query="Kyoto Japan cafes", limit=3)
@@ -147,14 +169,42 @@ def test_tavily_search_client_maps_results() -> None:
         "topic": "general",
         "include_answer": False,
         "include_raw_content": False,
-        "country": "japan",
       },
       "timeout": 8.0,
     }
   ]
 
 
+def test_tavily_search_client_includes_error_body_for_bad_requests() -> None:
+  def fake_post(url: str, **kwargs):
+    return FakeFailedResponse(
+      status_code=400,
+      text='{"detail":"country must be a valid enum value"}',
+    )
+
+  client = TavilySearchClient(
+    api_key="tvly-secret",
+    post=fake_post,
+    search_depth="basic",
+  )
+
+  with pytest.raises(httpx.HTTPStatusError, match="country must be a valid enum value"):
+    client.search(query="Seoul South Korea cafes", limit=3)
+
+
 def test_build_source_search_client_returns_tavily_client() -> None:
+  settings = SimpleNamespace(
+    search_provider="tavily",
+    tavily_api_key="tvly-secret",
+    tavily_search_depth="basic",
+  )
+
+  client = build_source_search_client(settings)
+
+  assert isinstance(client, TavilySearchClient)
+
+
+def test_build_source_search_client_ignores_obsolete_tavily_country_setting() -> None:
   settings = SimpleNamespace(
     search_provider="tavily",
     tavily_api_key="tvly-secret",
@@ -164,7 +214,7 @@ def test_build_source_search_client_returns_tavily_client() -> None:
 
   client = build_source_search_client(settings)
 
-  assert isinstance(client, TavilySearchClient)
+  assert not hasattr(client, "country")
 
 
 def test_build_source_search_client_requires_tavily_key() -> None:
@@ -172,7 +222,6 @@ def test_build_source_search_client_requires_tavily_key() -> None:
     search_provider="tavily",
     tavily_api_key=None,
     tavily_search_depth="basic",
-    tavily_country=None,
   )
 
   with pytest.raises(SearchConfigurationError, match="TAVILY_API_KEY"):

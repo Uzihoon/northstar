@@ -7,6 +7,7 @@ from northstar.research.discovery import SourceSearchResult
 
 BRAVE_WEB_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
+MAX_ERROR_BODY_LENGTH = 1_000
 
 
 class SearchConfigurationError(RuntimeError):
@@ -79,13 +80,11 @@ class TavilySearchClient:
       post: SearchPost | None = None,
       timeout: float = 20.0,
       search_depth: str = "basic",
-      country: str | None = None,
   ) -> None:
     self.api_key = api_key
     self.post = post or httpx.post
     self.timeout = timeout
     self.search_depth = search_depth
-    self.country = country
 
   def search(self, *, query: str, limit: int) -> list[SourceSearchResult]:
     body: dict[str, object] = {
@@ -97,9 +96,6 @@ class TavilySearchClient:
       "include_raw_content": False,
     }
 
-    if self.country:
-      body["country"] = self.country
-
     response = self.post(
       TAVILY_SEARCH_URL,
       headers={
@@ -109,7 +105,15 @@ class TavilySearchClient:
       json=body,
       timeout=self.timeout,
     )
-    response.raise_for_status()
+    try:
+      response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+      raise httpx.HTTPStatusError(
+        build_http_error_message(exc),
+        request=exc.request,
+        response=exc.response,
+      ) from exc
+
     payload = response.json()
     results = payload.get("results", [])
 
@@ -153,9 +157,21 @@ def build_source_search_client(settings: object) -> BraveSearchClient | TavilySe
     return TavilySearchClient(
       api_key=str(api_key),
       search_depth=str(getattr(settings, "tavily_search_depth", "basic")),
-      country=getattr(settings, "tavily_country", None),
     )
 
   raise SearchConfigurationError(
     f"Unsupported SEARCH_PROVIDER: {provider}. Supported providers: brave, tavily"
   )
+
+
+def build_http_error_message(exc: httpx.HTTPStatusError) -> str:
+  message = str(exc)
+  body = exc.response.text.strip()
+
+  if not body:
+    return message
+
+  if len(body) > MAX_ERROR_BODY_LENGTH:
+    body = f"{body[:MAX_ERROR_BODY_LENGTH]}..."
+
+  return f"{message}. Response body: {body}"

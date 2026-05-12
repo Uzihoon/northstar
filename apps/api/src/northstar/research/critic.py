@@ -1,5 +1,6 @@
 from typing import Protocol
 
+import httpx
 from pydantic import ValidationError
 
 from northstar.research.schemas import ResearchCritique, ResearchDraft, ResearchTarget
@@ -12,6 +13,7 @@ class StructuredChatClient(Protocol):
       messages: list[dict[str, object]],
       model: str,
       response_format: dict[str, object],
+      timeout: object | None = None,
   ) -> dict[str, object]:
     ...
 
@@ -21,9 +23,16 @@ class ResearchCriticError(RuntimeError):
 
 
 class OllamaResearchCritic:
-  def __init__(self, *, client: StructuredChatClient, model: str) -> None:
+  def __init__(
+      self,
+      *,
+      client: StructuredChatClient,
+      model: str,
+      read_timeout_seconds: float | None = None,
+  ) -> None:
     self.client = client
     self.model = model
+    self.read_timeout_seconds = read_timeout_seconds
 
   def review(
       self,
@@ -32,9 +41,9 @@ class OllamaResearchCritic:
       draft: ResearchDraft,
       source_texts: list[str],
   ) -> ResearchCritique:
-    payload = self.client.structured_chat(
-      model=self.model,
-      messages=[
+    request_kwargs = {
+      "model": self.model,
+      "messages": [
         {
           "role": "system",
           "content": RESEARCH_CRITIC_SYSTEM_PROMPT,
@@ -48,8 +57,13 @@ class OllamaResearchCritic:
           ),
         },
       ],
-      response_format=ResearchCritique.model_json_schema(),
-    )
+      "response_format": ResearchCritique.model_json_schema(),
+    }
+    timeout = _structured_chat_timeout(self.read_timeout_seconds)
+    if timeout is not None:
+      request_kwargs["timeout"] = timeout
+
+    payload = self.client.structured_chat(**request_kwargs)
 
     try:
       return ResearchCritique.model_validate(payload)
@@ -57,6 +71,18 @@ class OllamaResearchCritic:
       raise ResearchCriticError(
         "Research critic returned invalid structured output."
       ) from exc
+
+
+def _structured_chat_timeout(read_timeout_seconds: float | None) -> httpx.Timeout | None:
+  if read_timeout_seconds is None:
+    return None
+
+  return httpx.Timeout(
+    connect=5.0,
+    read=read_timeout_seconds,
+    write=30.0,
+    pool=5.0,
+  )
 
 
 RESEARCH_CRITIC_SYSTEM_PROMPT = """
