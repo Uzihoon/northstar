@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 import northstar.api.admin as admin_module
 import northstar.api.app as app_module
+from northstar.research.schemas import ResearchTarget, ResearchTheme
 
 
 client = TestClient(app_module.app)
@@ -20,13 +21,94 @@ class FakeSession:
 def test_admin_research_routes_publish_response_models() -> None:
   schema = app_module.app.openapi()
 
+  start_schema = schema["paths"]["/admin/research/runs"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]
   list_schema = schema["paths"]["/admin/research/runs"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
   detail_schema = schema["paths"]["/admin/research/runs/{run_id}"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
   sources_schema = schema["paths"]["/admin/research/runs/{run_id}/sources"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
 
+  assert start_schema["$ref"].endswith("/AdminResearchRunStartResponse")
   assert list_schema["$ref"].endswith("/AdminResearchRunListResponse")
   assert detail_schema["$ref"].endswith("/AdminResearchRunResponse")
   assert sources_schema["$ref"].endswith("/AdminResearchSourceSnapshotListResponse")
+
+
+def test_admin_start_research_run_queues_background_job(monkeypatch) -> None:
+  created = {}
+  queued = {}
+
+  class FakeSettings:
+    default_model = "test-model"
+
+  def fake_create_research_run(session, *, target, model_name, status="created", report=None):
+    created.update({
+      "target": target,
+      "model_name": model_name,
+      "status": status,
+      "report": report,
+    })
+    return SimpleNamespace(
+      run_id="run-1",
+      target=target.model_dump(mode="json"),
+      model_name=model_name,
+      status=status,
+      report=report,
+      created_at="2026-05-11T10:00:00+00:00",
+      updated_at="2026-05-11T10:00:00+00:00",
+    )
+
+  def fake_run_research_job(**kwargs):
+    queued.update(kwargs)
+
+  monkeypatch.setattr(admin_module, "get_settings", lambda: FakeSettings())
+  monkeypatch.setattr(admin_module, "get_session", lambda: FakeSession())
+  monkeypatch.setattr(admin_module, "create_research_run", fake_create_research_run)
+  monkeypatch.setattr(admin_module, "run_research_job", fake_run_research_job)
+
+  response = client.post(
+    "/admin/research/runs",
+    json={
+      "country": "Japan",
+      "city": "Kyoto",
+      "themes": ["cafes"],
+      "trusted_urls": ["https://kyoto.travel/en/"],
+      "web_search": True,
+      "publish_notes": True,
+    },
+  )
+
+  assert response.status_code == 200
+  assert created["target"] == ResearchTarget(
+    country="Japan",
+    city="Kyoto",
+    themes=[ResearchTheme.cafes],
+    trusted_urls=["https://kyoto.travel/en/"],
+  )
+  assert created["model_name"] == "test-model"
+  assert created["status"] == "queued"
+  assert created["report"] == {
+    "web_search": True,
+    "publish_notes": True,
+  }
+  assert queued == {
+    "run_id": "run-1",
+    "target": created["target"],
+    "model": "test-model",
+    "web_search": True,
+    "publish_notes": True,
+  }
+  assert response.json() == {
+    "run_id": "run-1",
+    "status": "queued",
+    "target": {
+      "country": "Japan",
+      "city": "Kyoto",
+      "themes": ["cafes"],
+      "trusted_urls": ["https://kyoto.travel/en/"],
+    },
+    "model_name": "test-model",
+    "detail_url": "/admin/research/runs/run-1",
+    "sources_url": "/admin/research/runs/run-1/sources",
+  }
 
 
 def test_admin_list_research_runs_returns_saved_runs(monkeypatch) -> None:

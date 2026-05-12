@@ -170,6 +170,62 @@ def run_research_pipeline(
     note_publisher: NotePublisher | None = None,
 ) -> ResearchPipelineResult:
   run = create_research_run(session, target=target, model_name=model_name)
+  return _execute_research_pipeline(
+    session=session,
+    run=run,
+    target=target,
+    fetcher=fetcher,
+    research_agent=research_agent,
+    critic=critic,
+    publish_notes=publish_notes,
+    note_publisher=note_publisher,
+  )
+
+
+def run_existing_research_pipeline(
+    *,
+    session: Session,
+    run_id: str,
+    target: ResearchTarget,
+    model_name: str,
+    fetcher: ResearchFetcher,
+    research_agent: ResearchAgent,
+    critic: ResearchCritic | None = None,
+    publish_notes: bool = False,
+    note_publisher: NotePublisher | None = None,
+) -> ResearchPipelineResult:
+  run = update_research_run_status(
+    session,
+    run_id=run_id,
+    status="running",
+    report={
+      "model_name": model_name,
+      "publish_notes": publish_notes,
+    },
+  )
+  return _execute_research_pipeline(
+    session=session,
+    run=run,
+    target=target,
+    fetcher=fetcher,
+    research_agent=research_agent,
+    critic=critic,
+    publish_notes=publish_notes,
+    note_publisher=note_publisher,
+  )
+
+
+def _execute_research_pipeline(
+    *,
+    session: Session,
+    run: SavedResearchRun,
+    target: ResearchTarget,
+    fetcher: ResearchFetcher,
+    research_agent: ResearchAgent,
+    critic: ResearchCritic | None,
+    publish_notes: bool,
+    note_publisher: NotePublisher | None,
+) -> ResearchPipelineResult:
   source_documents = _fetch_source_documents(fetcher=fetcher, target=target)
   source_snapshots = save_source_snapshots(
     session,

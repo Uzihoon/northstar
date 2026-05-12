@@ -211,3 +211,33 @@ def test_run_research_pipeline_stores_non_blocked_candidates(session: Session) -
   assert "Kyoto cafe source text." in research_agent.source_texts[0]
   assert published_notes[0]["target"].city == "Kyoto"
   assert published_notes[0]["notes"][0].title == "Kyoto cafe strategy"
+
+
+def test_run_existing_research_pipeline_uses_existing_run_id(session: Session) -> None:
+  from northstar.research.service import run_existing_research_pipeline
+  from northstar.research.store import create_research_run
+
+  target = ResearchTarget(
+    country="Japan",
+    city="Kyoto",
+    themes=[ResearchTheme.cafes],
+  )
+  run = create_research_run(
+    session,
+    target=target,
+    model_name="test-model",
+    status="queued",
+  )
+
+  result = run_existing_research_pipeline(
+    session=session,
+    run_id=run.run_id,
+    target=target,
+    model_name="test-model",
+    fetcher=FakeFetcher(),
+    research_agent=FakeResearchAgent(),
+    critic=FakeCritic(),
+  )
+
+  assert result.run.run_id == run.run_id
+  assert result.run.status == "completed"

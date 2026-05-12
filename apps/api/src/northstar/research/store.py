@@ -124,11 +124,14 @@ def create_research_run(
     *,
     target: ResearchTarget,
     model_name: str,
+    status: str = "created",
+    report: dict[str, object] | None = None,
 ) -> SavedResearchRun:
   row = ResearchRunModel(
     target=target.model_dump(mode="json"),
     model_name=model_name,
-    status="created",
+    status=status,
+    report=report,
   )
   session.add(row)
   session.commit()

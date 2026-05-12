@@ -1,11 +1,15 @@
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError
 
+from northstar.config import get_settings
 from northstar.db import get_session
+from northstar.research.job import run_research_job
+from northstar.research.schemas import ResearchTarget, ResearchTheme
 from northstar.research.store import (
+  create_research_run,
   get_research_run,
   list_research_runs,
   list_source_snapshots,
@@ -23,6 +27,25 @@ class AdminResearchRunResponse(BaseModel):
   report: dict[str, Any] | None = None
   created_at: str
   updated_at: str
+
+
+class AdminResearchRunCreateRequest(BaseModel):
+  country: str
+  city: str
+  themes: list[ResearchTheme] = Field(default_factory=list)
+  trusted_urls: list[str] = Field(default_factory=list)
+  web_search: bool = False
+  publish_notes: bool = False
+  model: str | None = None
+
+
+class AdminResearchRunStartResponse(BaseModel):
+  run_id: str
+  status: str
+  target: dict[str, Any]
+  model_name: str
+  detail_url: str
+  sources_url: str
 
 
 class AdminResearchRunListResponse(BaseModel):
@@ -47,6 +70,54 @@ class AdminResearchSourceSnapshotResponse(BaseModel):
 class AdminResearchSourceSnapshotListResponse(BaseModel):
   run_id: str
   sources: list[AdminResearchSourceSnapshotResponse] = Field(default_factory=list)
+
+
+@router.post("/research/runs", response_model=AdminResearchRunStartResponse)
+def admin_start_research_run(
+    request: AdminResearchRunCreateRequest,
+    background_tasks: BackgroundTasks,
+) -> AdminResearchRunStartResponse:
+  settings = get_settings()
+  model_name = request.model or settings.default_model
+  target = ResearchTarget(
+    country=request.country,
+    city=request.city,
+    themes=request.themes or list(ResearchTheme),
+    trusted_urls=request.trusted_urls,
+  )
+
+  try:
+    with get_session() as session:
+      run = create_research_run(
+        session,
+        target=target,
+        model_name=model_name,
+        status="queued",
+        report={
+          "web_search": request.web_search,
+          "publish_notes": request.publish_notes,
+        },
+      )
+  except SQLAlchemyError as exc:
+    raise HTTPException(status_code=503, detail="Database is unavailable.") from exc
+
+  background_tasks.add_task(
+    run_research_job,
+    run_id=run.run_id,
+    target=target,
+    model=model_name,
+    web_search=request.web_search,
+    publish_notes=request.publish_notes,
+  )
+
+  return AdminResearchRunStartResponse(
+    run_id=run.run_id,
+    status=run.status,
+    target=run.target,
+    model_name=run.model_name,
+    detail_url=f"/admin/research/runs/{run.run_id}",
+    sources_url=f"/admin/research/runs/{run.run_id}/sources",
+  )
 
 
 @router.get("/research/runs", response_model=AdminResearchRunListResponse)
