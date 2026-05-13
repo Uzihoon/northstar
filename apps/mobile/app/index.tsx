@@ -27,6 +27,7 @@ const CATEGORY_FILTERS = [
   { label: "Culture", value: "culture" },
   { label: "Walkable", value: "walkable" },
 ];
+const SEARCH_BORDER_COLOR = "rgba(216, 195, 165, 0.72)";
 
 export default function DashboardScreen() {
   const { isAuthenticated } = useAuth();
@@ -249,9 +250,9 @@ const styles = StyleSheet.create({
   searchCard: {
     alignItems: "center",
     backgroundColor: "#FFF7EA",
-    borderColor: colors.clay,
+    borderColor: SEARCH_BORDER_COLOR,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
     gap: spacing.sm,
     height: 52,
