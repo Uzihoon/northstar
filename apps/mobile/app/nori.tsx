@@ -74,7 +74,7 @@ export default function NoriScreen() {
   }
 
   return (
-    <Screen scroll={false}>
+    <Screen padded={false} scroll={false}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.container}
@@ -98,7 +98,11 @@ export default function NoriScreen() {
           </View>
         ) : null}
 
-        <ScrollView contentContainerStyle={styles.messages} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.messages}
+          showsVerticalScrollIndicator={false}
+          style={styles.messageList}
+        >
           {messages.map((message, index) => (
             <View
               key={`${message.role}-${index}`}
@@ -161,6 +165,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: "row",
     gap: spacing.lg,
+    marginHorizontal: spacing.xl,
+    marginTop: spacing.xl,
     padding: spacing.lg,
     ...shadows.card,
   },
@@ -219,14 +225,19 @@ const styles = StyleSheet.create({
   errorCard: {
     backgroundColor: "#F7D4BD",
     borderRadius: radius.md,
+    marginHorizontal: spacing.xl,
     padding: spacing.md,
   },
   errorText: {
     ...typography.caption,
     color: colors.error,
   },
+  messageList: {
+    flex: 1,
+  },
   messages: {
     gap: spacing.md,
+    paddingHorizontal: spacing.xl,
     paddingBottom: spacing.md,
   },
   bubble: {
@@ -261,6 +272,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.sm,
     marginBottom: APP_TAB_BAR_OVERLAY_HEIGHT,
+    marginHorizontal: spacing.xl,
     padding: spacing.sm,
   },
   input: {

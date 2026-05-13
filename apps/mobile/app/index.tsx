@@ -100,10 +100,11 @@ export default function DashboardScreen() {
   }
 
   return (
-    <Screen scroll={false}>
+    <Screen padded={false} scroll={false}>
       <View style={styles.container}>
         <ScrollView
           contentContainerStyle={styles.content}
+          style={styles.scroll}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
@@ -223,7 +224,12 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingBottom: APP_TAB_BAR_OVERLAY_HEIGHT,
+    paddingTop: spacing.xl,
+  },
+  scroll: {
+    flex: 1,
   },
   header: {
     alignItems: "flex-start",

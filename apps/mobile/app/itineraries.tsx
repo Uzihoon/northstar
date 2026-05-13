@@ -58,9 +58,13 @@ export default function ItinerariesScreen() {
   }
 
   return (
-    <Screen scroll={false}>
+    <Screen padded={false} scroll={false}>
       <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          style={styles.scroll}
+          showsVerticalScrollIndicator={false}
+        >
           <View>
             <Text style={styles.kicker}>Previous itineraries</Text>
             <Text style={styles.title}>Pick up where Nori left off.</Text>
@@ -122,7 +126,12 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingBottom: APP_TAB_BAR_OVERLAY_HEIGHT,
+    paddingTop: spacing.xl,
+  },
+  scroll: {
+    flex: 1,
   },
   kicker: {
     ...typography.caption,

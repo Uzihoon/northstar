@@ -7,18 +7,20 @@ import { colors, spacing } from "../theme/tokens";
 type ScreenProps = {
   children: ReactNode;
   edges?: Edges;
+  padded?: boolean;
   scroll?: boolean;
 };
 
 export function Screen({
   children,
   edges = ["top", "left", "right"],
+  padded = true,
   scroll = true,
 }: ScreenProps) {
   if (!scroll) {
     return (
       <SafeAreaView edges={edges} style={styles.safeArea}>
-        <View style={[styles.content, styles.staticContent]}>{children}</View>
+        <View style={[padded ? styles.content : null, styles.staticContent]}>{children}</View>
       </SafeAreaView>
     );
   }
@@ -27,7 +29,7 @@ export function Screen({
     <SafeAreaView edges={edges} style={styles.safeArea}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={padded ? styles.content : undefined}
         showsVerticalScrollIndicator={false}
       >
         {children}

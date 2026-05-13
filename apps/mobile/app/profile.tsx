@@ -21,9 +21,13 @@ export default function ProfileScreen() {
   }
 
   return (
-    <Screen scroll={false}>
+    <Screen padded={false} scroll={false}>
       <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          style={styles.scroll}
+          showsVerticalScrollIndicator={false}
+        >
           <View>
             <Text style={styles.kicker}>Profile</Text>
             <Text style={styles.title}>Your travel taste, still local for now.</Text>
@@ -75,7 +79,12 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingBottom: APP_TAB_BAR_OVERLAY_HEIGHT,
+    paddingTop: spacing.xl,
+  },
+  scroll: {
+    flex: 1,
   },
   kicker: {
     ...typography.caption,
