@@ -53,6 +53,7 @@ const EXPANDED_BAR_WIDTH =
   BAR_HORIZONTAL_PADDING * 2 + ACTIVE_SLOT_WIDTH + INACTIVE_SLOT_WIDTH * (TABS.length - 1);
 const MOTION_INPUT_RANGE = [0, 0.52, 1];
 const MENU_BAR_BACKGROUND = "rgba(255, 249, 240, 0.68)";
+const TAB_BAR_BOTTOM_OFFSET = spacing.md;
 
 export const APP_TAB_BAR_OVERLAY_HEIGHT = 92;
 
@@ -349,7 +350,7 @@ function navigateTo(tab: TabKey) {
 const styles = StyleSheet.create({
   wrap: {
     alignItems: "center",
-    bottom: 0,
+    bottom: TAB_BAR_BOTTOM_OFFSET,
     left: 0,
     position: "absolute",
     right: 0,
