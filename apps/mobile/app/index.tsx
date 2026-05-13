@@ -102,11 +102,7 @@ export default function DashboardScreen() {
   return (
     <Screen padded={false} scroll={false}>
       <View style={styles.container}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          style={styles.scroll}
-          showsVerticalScrollIndicator={false}
-        >
+        <View style={styles.content}>
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>Where should Nori take you?</Text>
@@ -169,47 +165,53 @@ export default function DashboardScreen() {
 
           <View style={styles.sectionHeader}>
             <View>
-              <Text style={styles.sectionTitle}>Destinations</Text>
+              <Text style={styles.sectionTitle}>Curated for you</Text>
               <Text style={styles.sectionSubtitle}>
                 Large cards now, real photography later.
               </Text>
             </View>
           </View>
 
-          {isLoading ? (
-            <View style={styles.stateCard}>
-              <ActivityIndicator color={colors.primary} />
-              <Text style={styles.stateText}>Loading travel shelves...</Text>
-            </View>
-          ) : null}
+          <ScrollView
+            contentContainerStyle={styles.destinationScrollContent}
+            style={styles.destinationScroll}
+            showsVerticalScrollIndicator={false}
+          >
+            {isLoading ? (
+              <View style={styles.stateCard}>
+                <ActivityIndicator color={colors.primary} />
+                <Text style={styles.stateText}>Loading travel shelves...</Text>
+              </View>
+            ) : null}
 
-          {errorMessage ? (
-            <View style={styles.stateCard}>
-              <Text style={styles.errorTitle}>Could not reach Northstar API</Text>
-              <Text style={styles.stateText}>{errorMessage}</Text>
-            </View>
-          ) : null}
+            {errorMessage ? (
+              <View style={styles.stateCard}>
+                <Text style={styles.errorTitle}>Could not reach Northstar API</Text>
+                <Text style={styles.stateText}>{errorMessage}</Text>
+              </View>
+            ) : null}
 
-          {!isLoading && !errorMessage && filteredDestinations.length === 0 ? (
-            <View style={styles.stateCard}>
-              <Text style={styles.errorTitle}>No matching destinations yet</Text>
-              <Text style={styles.stateText}>Try Kyoto, cafe, temple, walkable, or slow travel.</Text>
-            </View>
-          ) : null}
+            {!isLoading && !errorMessage && filteredDestinations.length === 0 ? (
+              <View style={styles.stateCard}>
+                <Text style={styles.errorTitle}>No matching destinations yet</Text>
+                <Text style={styles.stateText}>Try Kyoto, cafe, temple, walkable, or slow travel.</Text>
+              </View>
+            ) : null}
 
-          <View style={styles.destinationList}>
-            {filteredDestinations.map((destination) => (
-              <DestinationCard
-                destination={destination}
-                key={destination.id}
-                onPress={() => router.push({
-                  pathname: "/destinations/[id]",
-                  params: { id: destination.id },
-                })}
-              />
-            ))}
-          </View>
-        </ScrollView>
+            <View style={styles.destinationList}>
+              {filteredDestinations.map((destination) => (
+                <DestinationCard
+                  destination={destination}
+                  key={destination.id}
+                  onPress={() => router.push({
+                    pathname: "/destinations/[id]",
+                    params: { id: destination.id },
+                  })}
+                />
+              ))}
+            </View>
+          </ScrollView>
+        </View>
 
         <AppTabBar active="explore" />
       </View>
@@ -223,13 +225,10 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   content: {
+    flex: 1,
     gap: spacing.lg,
     paddingHorizontal: spacing.xl,
-    paddingBottom: APP_TAB_BAR_OVERLAY_HEIGHT,
     paddingTop: spacing.xl,
-  },
-  scroll: {
-    flex: 1,
   },
   header: {
     alignItems: "flex-start",
@@ -334,6 +333,13 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.muted,
     textAlign: "center",
+  },
+  destinationScroll: {
+    flex: 1,
+  },
+  destinationScrollContent: {
+    gap: spacing.lg,
+    paddingBottom: APP_TAB_BAR_OVERLAY_HEIGHT,
   },
   destinationList: {
     gap: spacing.lg,
