@@ -364,6 +364,7 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   destinationCardFrame: {
+    height: 418,
     width: 302,
   },
 });

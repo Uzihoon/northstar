@@ -30,7 +30,7 @@ export function DestinationCard({ destination, onPress }: DestinationCardProps) 
       )}
       <View style={styles.body}>
         <Text style={styles.title}>{destination.city}, {destination.country}</Text>
-        <Text style={styles.summary}>{destination.summary}</Text>
+        <Text numberOfLines={3} style={styles.summary}>{destination.summary}</Text>
         <View style={styles.pills}>
           {destination.vibes.slice(0, 3).map((vibe) => (
             <Pill key={vibe} label={vibe} tone="sage" />
@@ -62,6 +62,7 @@ const styles = StyleSheet.create({
     borderColor: colors.clay,
     borderRadius: radius.lg,
     borderWidth: 1,
+    flex: 1,
     overflow: "hidden",
     ...shadows.card,
   },
@@ -124,6 +125,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   body: {
+    flex: 1,
     gap: spacing.sm,
     padding: spacing.lg,
   },
