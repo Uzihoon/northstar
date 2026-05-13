@@ -1,4 +1,5 @@
 import { Redirect, router } from "expo-router";
+import { Search } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -118,6 +119,13 @@ export default function DashboardScreen() {
           </View>
 
           <View style={styles.searchCard}>
+            <Search
+              color={colors.muted}
+              pointerEvents="none"
+              size={20}
+              strokeWidth={2.2}
+              style={styles.searchIcon}
+            />
             <TextInput
               autoCapitalize="none"
               onChangeText={setSearchText}
@@ -239,16 +247,24 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   searchCard: {
+    justifyContent: "center",
+    position: "relative",
     width: "100%",
+  },
+  searchIcon: {
+    left: spacing.md,
+    position: "absolute",
+    zIndex: 1,
   },
   searchInput: {
     ...typography.body,
-    backgroundColor: colors.background,
+    backgroundColor: colors.white,
     borderColor: colors.clay,
     borderRadius: radius.md,
     borderWidth: 1,
     height: 52,
     paddingHorizontal: spacing.md,
+    paddingLeft: spacing.xl + spacing.md,
     paddingVertical: 0,
     textAlignVertical: "center",
   },
