@@ -16,7 +16,7 @@ import { useAuth } from "../src/auth/AuthContext";
 import { AppTabBar, APP_TAB_BAR_OVERLAY_HEIGHT } from "../src/components/AppTabBar";
 import { DestinationCard } from "../src/components/DestinationCard";
 import { Screen } from "../src/components/Screen";
-import { colors, radius, shadows, spacing, typography } from "../src/theme/tokens";
+import { colors, radius, spacing, typography } from "../src/theme/tokens";
 
 const CATEGORY_FILTERS = [
   { label: "All", value: "all" },
@@ -128,16 +128,6 @@ export default function DashboardScreen() {
               style={styles.searchInput}
               value={searchText}
             />
-            <Pressable
-              accessibilityRole="button"
-              onPress={submitSearch}
-              style={({ pressed }) => [
-                styles.searchButton,
-                pressed && styles.searchButtonPressed,
-              ]}
-            >
-              <Text style={styles.searchButtonText}>Search</Text>
-            </Pressable>
           </View>
 
           <ScrollView
@@ -249,15 +239,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   searchCard: {
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderColor: colors.clay,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: spacing.sm,
-    padding: spacing.sm,
-    ...shadows.card,
+    width: "100%",
   },
   searchInput: {
     ...typography.body,
@@ -265,25 +247,10 @@ const styles = StyleSheet.create({
     borderColor: colors.clay,
     borderRadius: radius.md,
     borderWidth: 1,
-    flex: 1,
-    minHeight: 50,
+    height: 52,
     paddingHorizontal: spacing.md,
-  },
-  searchButton: {
-    alignItems: "center",
-    backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    justifyContent: "center",
-    minHeight: 50,
-    paddingHorizontal: spacing.lg,
-  },
-  searchButtonPressed: {
-    backgroundColor: colors.primaryPressed,
-  },
-  searchButtonText: {
-    ...typography.caption,
-    color: colors.white,
-    fontWeight: "800",
+    paddingVertical: 0,
+    textAlignVertical: "center",
   },
   categoryList: {
     gap: spacing.sm,
