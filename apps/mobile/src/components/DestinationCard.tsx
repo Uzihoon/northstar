@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
   summary: {
     ...typography.body,
     color: colors.muted,
-    maxHeight: 72,
+    height: 72,
   },
   pills: {
     flexDirection: "row",
