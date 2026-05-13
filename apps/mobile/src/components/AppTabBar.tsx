@@ -1,4 +1,11 @@
 import { router } from "expo-router";
+import {
+  Bookmark,
+  Home,
+  Luggage,
+  UserRound,
+  type LucideIcon,
+} from "lucide-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { colors, radius, shadows, spacing, typography } from "../theme/tokens";
@@ -16,11 +23,13 @@ export function AppTabBar({ active }: AppTabBarProps) {
         <View style={styles.tabGroup}>
           <TabButton
             active={active === "home"}
+            Icon={Home}
             label="Home"
             onPress={() => router.replace("/")}
           />
           <TabButton
             active={active === "saved"}
+            Icon={Bookmark}
             label="Saved"
             onPress={() => router.replace("/saved")}
           />
@@ -45,11 +54,13 @@ export function AppTabBar({ active }: AppTabBarProps) {
         <View style={styles.tabGroup}>
           <TabButton
             active={active === "itineraries"}
+            Icon={Luggage}
             label="Trips"
             onPress={() => router.replace("/itineraries")}
           />
           <TabButton
             active={active === "profile"}
+            Icon={UserRound}
             label="Profile"
             onPress={() => router.replace("/profile")}
           />
@@ -61,24 +72,24 @@ export function AppTabBar({ active }: AppTabBarProps) {
 
 type TabButtonProps = {
   active: boolean;
+  Icon: LucideIcon;
   label: string;
   onPress: () => void;
 };
 
-function TabButton({ active, label, onPress }: TabButtonProps) {
+function TabButton({ active, Icon, label, onPress }: TabButtonProps) {
+  const color = active ? colors.ink : colors.muted;
+
   return (
     <Pressable
       accessibilityRole="button"
-      disabled={!label}
       onPress={onPress}
       style={styles.tabButton}
     >
-      {label ? (
-        <>
-          <View style={[styles.tabDot, active && styles.activeDot]} />
-          <Text style={[styles.tabLabel, active && styles.activeLabel]}>{label}</Text>
-        </>
-      ) : null}
+      <View style={[styles.iconWrap, active && styles.activeIconWrap]}>
+        <Icon color={color} size={21} strokeWidth={2.2} />
+      </View>
+      <Text style={[styles.tabLabel, active && styles.activeLabel]}>{label}</Text>
     </Pressable>
   );
 }
@@ -111,18 +122,19 @@ const styles = StyleSheet.create({
   tabButton: {
     alignItems: "center",
     flex: 1,
-    gap: spacing.xs,
+    gap: 3,
     justifyContent: "center",
-    minHeight: 58,
+    minHeight: 62,
   },
-  tabDot: {
-    backgroundColor: "transparent",
+  iconWrap: {
+    alignItems: "center",
     borderRadius: radius.pill,
-    height: 6,
-    width: 6,
+    height: 32,
+    justifyContent: "center",
+    width: 38,
   },
-  activeDot: {
-    backgroundColor: colors.primary,
+  activeIconWrap: {
+    backgroundColor: "#F7D4BD",
   },
   tabLabel: {
     ...typography.caption,

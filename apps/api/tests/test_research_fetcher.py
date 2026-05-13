@@ -11,8 +11,9 @@ from northstar.research.schemas import ResearchTarget, ResearchTheme
 
 
 class FakeResponse:
-  def __init__(self, text: str) -> None:
+  def __init__(self, text: str, headers: dict[str, str] | None = None) -> None:
     self.text = text
+    self.headers = headers or {}
     self.raise_for_status_called = False
 
   def raise_for_status(self) -> None:
@@ -60,6 +61,13 @@ def test_html_to_text_removes_scripts_styles_tags_and_unescapes_entities() -> No
   text = html_to_text(html)
 
   assert text == "Kyoto Cafes Quiet coffee & scenic walks."
+
+
+def test_html_to_text_removes_nul_bytes_for_postgres_storage() -> None:
+  text = html_to_text("<p>Seoul\x00 cafes</p>")
+
+  assert text == "Seoul cafes"
+  assert "\x00" not in text
 
 
 def test_trusted_url_fetcher_fetches_target_trusted_urls() -> None:
@@ -159,6 +167,32 @@ def test_trusted_url_fetcher_skips_failed_sources_and_records_failures() -> None
   assert len(fetcher.fetch_failures) == 1
   assert fetcher.fetch_failures[0].url == "https://visit.example.com"
   assert "502" in fetcher.fetch_failures[0].error
+
+
+def test_trusted_url_fetcher_skips_pdf_sources_and_records_failures() -> None:
+  response = FakeResponse(
+    "%PDF-1.6 binary\x00content",
+    headers={"content-type": "application/pdf"},
+  )
+
+  def fake_get(url: str, **kwargs):
+    return response
+
+  fetcher = TrustedUrlFetcher(get=fake_get)
+
+  documents = fetcher.fetch_documents(
+    target=ResearchTarget(
+      country="South Korea",
+      city="Seoul",
+      themes=[ResearchTheme.overview],
+      trusted_urls=["https://example.com/seoul-guide.pdf"],
+    )
+  )
+
+  assert documents == []
+  assert len(fetcher.fetch_failures) == 1
+  assert fetcher.fetch_failures[0].url == "https://example.com/seoul-guide.pdf"
+  assert "unsupported" in fetcher.fetch_failures[0].error
 
 
 def test_discovery_url_fetcher_fetches_trusted_and_discovered_urls() -> None:

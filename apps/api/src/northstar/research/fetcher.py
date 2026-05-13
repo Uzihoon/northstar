@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable, Protocol
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -14,6 +15,13 @@ from northstar.research.discovery import (
   discover_sources,
 )
 from northstar.research.schemas import ResearchTarget
+
+
+SUPPORTED_TEXT_CONTENT_TYPES = {
+  "application/xhtml+xml",
+  "text/html",
+  "text/plain",
+}
 
 
 class FetchResponse(Protocol):
@@ -64,7 +72,11 @@ def html_to_text(raw_html: str) -> str:
   )
   without_tags = re.sub(r"<[^>]+>", " ", without_scripts)
   unescaped = html.unescape(without_tags)
-  return re.sub(r"\s+", " ", unescaped).strip()
+  return sanitize_extracted_text(re.sub(r"\s+", " ", unescaped).strip())
+
+
+def sanitize_extracted_text(text: str) -> str:
+  return re.sub(r"\s+", " ", text.replace("\x00", " ")).strip()
 
 
 class TrustedUrlFetcher:
@@ -107,6 +119,13 @@ class TrustedUrlFetcher:
       response.raise_for_status()
     except httpx.HTTPError as exc:
       self.fetch_failures.append(_fetch_failure_from_exception(source, exc))
+      return None
+
+    unsupported_reason = _unsupported_source_reason(source, response)
+    if unsupported_reason is not None:
+      self.fetch_failures.append(
+        _fetch_failure_from_reason(source, unsupported_reason)
+      )
       return None
 
     text = html_to_text(response.text)
@@ -193,3 +212,49 @@ def _fetch_failure_from_exception(
     snippet=source.snippet,
     fetched_at=datetime.now(timezone.utc),
   )
+
+
+def _fetch_failure_from_reason(
+    source: DiscoveredSource,
+    reason: str,
+) -> SourceFetchFailure:
+  return SourceFetchFailure(
+    url=source.url,
+    title=source.title,
+    error=reason,
+    query=source.query,
+    source_kind=source.source_kind,
+    trust_hint=source.trust_hint.value,
+    snippet=source.snippet,
+    fetched_at=datetime.now(timezone.utc),
+  )
+
+
+def _unsupported_source_reason(
+    source: DiscoveredSource,
+    response: FetchResponse,
+) -> str | None:
+  if _url_path_endswith(source.url, ".pdf"):
+    return "Skipped unsupported PDF source."
+
+  content_type = _response_content_type(response)
+  if content_type == "application/pdf":
+    return "Skipped unsupported PDF source."
+
+  if content_type and content_type not in SUPPORTED_TEXT_CONTENT_TYPES:
+    return f"Skipped unsupported content type: {content_type}."
+
+  if response.text.lstrip().startswith("%PDF-"):
+    return "Skipped unsupported PDF source."
+
+  return None
+
+
+def _response_content_type(response: FetchResponse) -> str:
+  headers = getattr(response, "headers", {})
+  raw_content_type = headers.get("content-type", "") if headers else ""
+  return str(raw_content_type).split(";", 1)[0].strip().lower()
+
+
+def _url_path_endswith(url: str, suffix: str) -> bool:
+  return urlsplit(url).path.lower().endswith(suffix)
