@@ -139,6 +139,7 @@ export default function DashboardScreen() {
           <ScrollView
             contentContainerStyle={styles.categoryList}
             horizontal
+            style={styles.categoryScroll}
             showsHorizontalScrollIndicator={false}
           >
             {CATEGORY_FILTERS.map((category) => (
@@ -174,8 +175,9 @@ export default function DashboardScreen() {
 
           <ScrollView
             contentContainerStyle={styles.destinationScrollContent}
+            horizontal
             style={styles.destinationScroll}
-            showsVerticalScrollIndicator={false}
+            showsHorizontalScrollIndicator={false}
           >
             {isLoading ? (
               <View style={styles.stateCard}>
@@ -200,14 +202,15 @@ export default function DashboardScreen() {
 
             <View style={styles.destinationList}>
               {filteredDestinations.map((destination) => (
-                <DestinationCard
-                  destination={destination}
-                  key={destination.id}
-                  onPress={() => router.push({
-                    pathname: "/destinations/[id]",
-                    params: { id: destination.id },
-                  })}
-                />
+                <View key={destination.id} style={styles.destinationCardFrame}>
+                  <DestinationCard
+                    destination={destination}
+                    onPress={() => router.push({
+                      pathname: "/destinations/[id]",
+                      params: { id: destination.id },
+                    })}
+                  />
+                </View>
               ))}
             </View>
           </ScrollView>
@@ -284,14 +287,19 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingRight: spacing.xl,
   },
+  categoryScroll: {
+    flexGrow: 0,
+    maxHeight: 38,
+  },
   categoryChip: {
     backgroundColor: colors.surface,
     borderColor: colors.clay,
     borderRadius: radius.pill,
     borderWidth: 1,
-    minHeight: 36,
+    height: 36,
+    justifyContent: "center",
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: 0,
   },
   activeCategoryChip: {
     backgroundColor: colors.sage,
@@ -335,13 +343,19 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   destinationScroll: {
-    flex: 1,
+    flexGrow: 0,
+    marginRight: -spacing.xl,
   },
   destinationScrollContent: {
     gap: spacing.lg,
     paddingBottom: APP_TAB_BAR_OVERLAY_HEIGHT,
+    paddingRight: spacing.xl,
   },
   destinationList: {
+    flexDirection: "row",
     gap: spacing.lg,
+  },
+  destinationCardFrame: {
+    width: 302,
   },
 });
