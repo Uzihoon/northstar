@@ -109,7 +109,7 @@ export default function ItinerariesScreen() {
           </View>
         </ScrollView>
 
-        <AppTabBar active="itineraries" />
+        <AppTabBar active="trips" />
       </View>
     </Screen>
   );

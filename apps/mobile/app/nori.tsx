@@ -142,7 +142,7 @@ export default function NoriScreen() {
           </Pressable>
         </View>
 
-        <AppTabBar active="nori" />
+        <AppTabBar active="chat" />
       </KeyboardAvoidingView>
     </Screen>
   );

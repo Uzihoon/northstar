@@ -1,197 +1,451 @@
 import { router } from "expo-router";
 import {
-  Bookmark,
-  Home,
+  Compass,
   Luggage,
+  MessageCircle,
   UserRound,
   type LucideIcon,
 } from "lucide-react-native";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Animated,
+  Easing,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useEffect, useRef, useState } from "react";
 
 import { colors, radius, shadows, spacing, typography } from "../theme/tokens";
 
-type TabKey = "home" | "saved" | "itineraries" | "profile" | "nori";
+type TabKey = "explore" | "chat" | "trips" | "profile";
 
 type AppTabBarProps = {
   active: TabKey;
 };
 
+type TabConfig = {
+  key: TabKey;
+  label: string;
+  Icon: LucideIcon;
+};
+
+type ActiveMotion = {
+  from: TabKey;
+  to: TabKey;
+};
+
+const TABS: TabConfig[] = [
+  { key: "explore", label: "Explore", Icon: Compass },
+  { key: "chat", label: "Chat", Icon: MessageCircle },
+  { key: "trips", label: "Trips", Icon: Luggage },
+  { key: "profile", label: "Profile", Icon: UserRound },
+];
+
+const BAR_HORIZONTAL_PADDING = spacing.sm;
+const ACTIVE_SLOT_WIDTH = 118;
+const INACTIVE_SLOT_WIDTH = 52;
+const COLLAPSED_PILL_SIZE = 52;
+const PILL_HEIGHT = 52;
+const COLLAPSED_BAR_WIDTH = BAR_HORIZONTAL_PADDING * 2 + INACTIVE_SLOT_WIDTH * TABS.length;
+const EXPANDED_BAR_WIDTH =
+  BAR_HORIZONTAL_PADDING * 2 + ACTIVE_SLOT_WIDTH + INACTIVE_SLOT_WIDTH * (TABS.length - 1);
+const MOTION_INPUT_RANGE = [0, 0.52, 1];
+
 export function AppTabBar({ active }: AppTabBarProps) {
+  const [selectedTab, setSelectedTab] = useState<TabKey>(active);
+  const [motion, setMotion] = useState<ActiveMotion | null>(null);
+  const motionProgress = useRef(new Animated.Value(1)).current;
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const animationRun = useRef(0);
+  const isAnimatingRef = useRef(false);
+  const queuedTabRef = useRef<TabKey | null>(null);
+  const settledTabRef = useRef<TabKey>(active);
+
+  useEffect(() => {
+    if (isAnimatingRef.current) {
+      return;
+    }
+
+    stopActiveAnimation();
+    motionProgress.setValue(1);
+    settledTabRef.current = active;
+    setSelectedTab(active);
+    setMotion(null);
+  }, [active, motionProgress]);
+
+  useEffect(() => {
+    return () => {
+      stopActiveAnimation();
+      animationRun.current += 1;
+    };
+  }, []);
+
+  function navigate(tab: TabKey) {
+    if (isAnimatingRef.current) {
+      queuedTabRef.current = tab;
+      return;
+    }
+
+    if (tab === settledTabRef.current) {
+      setSelectedTab(tab);
+      return;
+    }
+
+    startTransition(settledTabRef.current, tab);
+  }
+
+  function stopActiveAnimation() {
+    animationRun.current += 1;
+
+    if (animationRef.current) {
+      animationRef.current.stop();
+      animationRef.current = null;
+    }
+
+    motionProgress.stopAnimation();
+  }
+
+  function startTransition(from: TabKey, to: TabKey) {
+    if (from === to) {
+      settledTabRef.current = to;
+      setSelectedTab(to);
+      setMotion(null);
+      return;
+    }
+
+    setSelectedTab(to);
+    setMotion({ from, to });
+    motionProgress.setValue(0);
+    isAnimatingRef.current = true;
+
+    const runId = animationRun.current + 1;
+    animationRun.current = runId;
+    animationRef.current = Animated.timing(motionProgress, {
+      duration: 640,
+      easing: Easing.bezier(0.22, 0.78, 0.22, 1),
+      toValue: 1,
+      useNativeDriver: false,
+    });
+
+    animationRef.current.start(({ finished }) => {
+      if (!finished || animationRun.current !== runId) {
+        return;
+      }
+
+      animationRef.current = null;
+      settledTabRef.current = to;
+      setMotion(null);
+      motionProgress.setValue(1);
+
+      const queuedTab = queuedTabRef.current;
+      queuedTabRef.current = null;
+
+      if (queuedTab && queuedTab !== to) {
+        startTransition(to, queuedTab);
+        return;
+      }
+
+      isAnimatingRef.current = false;
+      navigateTo(to);
+    });
+  }
+
+  const activeMotion = motion ?? { from: selectedTab, to: selectedTab };
+  const fromActiveLeft = getActiveIndicatorLeft(activeMotion.from);
+  const toCollapsedLeft = getCollapsedIndicatorLeft(activeMotion.to);
+  const toActiveLeft = getActiveIndicatorLeft(activeMotion.to);
+  const animatedBarWidth = motionProgress.interpolate({
+    inputRange: MOTION_INPUT_RANGE,
+    outputRange: [EXPANDED_BAR_WIDTH, COLLAPSED_BAR_WIDTH, EXPANDED_BAR_WIDTH],
+  });
+  const indicatorWidth = motionProgress.interpolate({
+    inputRange: MOTION_INPUT_RANGE,
+    outputRange: [ACTIVE_SLOT_WIDTH, COLLAPSED_PILL_SIZE, ACTIVE_SLOT_WIDTH],
+  });
+  const indicatorLeft = motionProgress.interpolate({
+    inputRange: MOTION_INPUT_RANGE,
+    outputRange: [fromActiveLeft, toCollapsedLeft, toActiveLeft],
+  });
+  const fromContentOpacity = motionProgress.interpolate({
+    inputRange: [0, 0.16, 0.32],
+    outputRange: [1, 0.35, 0],
+  });
+  const toContentOpacity = motionProgress.interpolate({
+    inputRange: [0.52, 0.72, 1],
+    outputRange: [0, 0.6, 1],
+  });
+
   return (
     <View style={styles.wrap}>
-      <View style={styles.bar}>
-        <View style={styles.tabGroup}>
-          <TabButton
-            active={active === "home"}
-            Icon={Home}
-            label="Home"
-            onPress={() => router.replace("/")}
-          />
-          <TabButton
-            active={active === "saved"}
-            Icon={Bookmark}
-            label="Saved"
-            onPress={() => router.replace("/saved")}
-          />
-        </View>
+      <Animated.View
+        style={[styles.bar, { width: animatedBarWidth }]}
+      >
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.activeIndicator,
+            {
+              left: indicatorLeft,
+              width: indicatorWidth,
+            },
+          ]}
+        >
+          <View style={styles.liquidLayer}>
+            <View style={[styles.liquidBlob, styles.liquidOrange]} />
+            <View style={[styles.liquidBlob, styles.liquidSage]} />
+            <View style={[styles.liquidBlob, styles.liquidCream]} />
+            <View style={styles.liquidSheen} />
+          </View>
 
-        <View style={styles.noriLane}>
-          <Pressable
-            accessibilityLabel="Chat with Nori"
-            accessibilityRole="button"
-            onPress={() => router.push("/nori")}
-            style={[styles.noriButton, active === "nori" && styles.activeNoriButton]}
-          >
-            <View style={styles.noriOrb}>
-              <View style={[styles.orbBlob, styles.orbOrange]} />
-              <View style={[styles.orbBlob, styles.orbSage]} />
-              <View style={[styles.orbBlob, styles.orbCream]} />
-              <Text style={styles.noriText}>N</Text>
-            </View>
-          </Pressable>
-        </View>
+          {motion ? (
+            <>
+              <ActiveIndicatorContent opacity={fromContentOpacity} tab={motion.from} />
+              <ActiveIndicatorContent opacity={toContentOpacity} tab={motion.to} />
+            </>
+          ) : (
+            <ActiveIndicatorContent opacity={1} tab={selectedTab} />
+          )}
+        </Animated.View>
 
-        <View style={styles.tabGroup}>
+        {TABS.map((tab) => (
           <TabButton
-            active={active === "itineraries"}
-            Icon={Luggage}
-            label="Trips"
-            onPress={() => router.replace("/itineraries")}
+            Icon={tab.Icon}
+            key={tab.key}
+            label={tab.label}
+            motionProgress={motionProgress}
+            motion={motion}
+            onPress={() => navigate(tab.key)}
+            stableActive={selectedTab === tab.key}
+            selected={selectedTab === tab.key}
+            tab={tab.key}
           />
-          <TabButton
-            active={active === "profile"}
-            Icon={UserRound}
-            label="Profile"
-            onPress={() => router.replace("/profile")}
-          />
-        </View>
-      </View>
+        ))}
+      </Animated.View>
     </View>
   );
 }
 
-type TabButtonProps = {
-  active: boolean;
-  Icon: LucideIcon;
-  label: string;
-  onPress: () => void;
-};
-
-function TabButton({ active, Icon, label, onPress }: TabButtonProps) {
-  const color = active ? colors.ink : colors.muted;
+function ActiveIndicatorContent({
+  opacity,
+  tab,
+}: {
+  opacity: Animated.AnimatedInterpolation<number> | number;
+  tab: TabKey;
+}) {
+  const tabConfig = getTabConfig(tab);
+  const Icon = tabConfig.Icon;
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={styles.tabButton}
-    >
-      <View style={[styles.iconWrap, active && styles.activeIconWrap]}>
-        <Icon color={color} size={21} strokeWidth={2.2} />
-      </View>
-      <Text style={[styles.tabLabel, active && styles.activeLabel]}>{label}</Text>
-    </Pressable>
+    <Animated.View style={[styles.activeIndicatorContent, { opacity }]}>
+      <Icon color={colors.white} size={21} strokeWidth={2.2} />
+      <Text numberOfLines={1} style={styles.activeLabel}>
+        {tabConfig.label}
+      </Text>
+    </Animated.View>
   );
+}
+
+function TabButton({
+  Icon,
+  label,
+  motion,
+  motionProgress,
+  onPress,
+  stableActive,
+  selected,
+  tab,
+}: {
+  Icon: LucideIcon;
+  label: string;
+  motion: ActiveMotion | null;
+  motionProgress: Animated.Value;
+  onPress: () => void;
+  stableActive: boolean;
+  selected: boolean;
+  tab: TabKey;
+}) {
+  const width = getTabWidth({ motion, motionProgress, stableActive, tab });
+
+  return (
+    <Animated.View style={[styles.tabSlot, { width }]}>
+      <Pressable
+        accessibilityLabel={label}
+        accessibilityRole="button"
+        accessibilityState={{ selected }}
+        onPress={onPress}
+        style={styles.tabPressable}
+      >
+        <Icon color={colors.ink} size={21} strokeWidth={2.2} />
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function getTabWidth({
+  motion,
+  motionProgress,
+  stableActive,
+  tab,
+}: {
+  motion: ActiveMotion | null;
+  motionProgress: Animated.Value;
+  stableActive: boolean;
+  tab: TabKey;
+}) {
+  if (!motion) {
+    return stableActive ? ACTIVE_SLOT_WIDTH : INACTIVE_SLOT_WIDTH;
+  }
+
+  if (tab === motion.from) {
+    return motionProgress.interpolate({
+      inputRange: MOTION_INPUT_RANGE,
+      outputRange: [ACTIVE_SLOT_WIDTH, INACTIVE_SLOT_WIDTH, INACTIVE_SLOT_WIDTH],
+    });
+  }
+
+  if (tab === motion.to) {
+    return motionProgress.interpolate({
+      inputRange: MOTION_INPUT_RANGE,
+      outputRange: [INACTIVE_SLOT_WIDTH, INACTIVE_SLOT_WIDTH, ACTIVE_SLOT_WIDTH],
+    });
+  }
+
+  return INACTIVE_SLOT_WIDTH;
+}
+
+function getTabConfig(tab: TabKey) {
+  return TABS.find((item) => item.key === tab) ?? TABS[0];
+}
+
+function getActiveIndicatorLeft(tab: TabKey) {
+  const tabIndex = TABS.findIndex((item) => item.key === tab);
+
+  return BAR_HORIZONTAL_PADDING + tabIndex * INACTIVE_SLOT_WIDTH;
+}
+
+function getCollapsedIndicatorLeft(tab: TabKey) {
+  const tabIndex = TABS.findIndex((item) => item.key === tab);
+
+  return BAR_HORIZONTAL_PADDING + tabIndex * INACTIVE_SLOT_WIDTH;
+}
+
+function navigateTo(tab: TabKey) {
+  if (tab === "explore") {
+    router.replace("/");
+  } else if (tab === "chat") {
+    router.replace("/nori");
+  } else if (tab === "trips") {
+    router.replace("/itineraries");
+  } else {
+    router.replace("/profile");
+  }
 }
 
 const styles = StyleSheet.create({
   wrap: {
+    alignItems: "center",
     paddingTop: spacing.sm,
   },
   bar: {
     alignItems: "center",
+    alignSelf: "center",
     backgroundColor: colors.surface,
-    borderColor: colors.clay,
-    borderRadius: radius.lg,
-    borderWidth: 1,
+    borderRadius: radius.pill,
     flexDirection: "row",
-    minHeight: 78,
-    paddingHorizontal: spacing.sm,
+    justifyContent: "center",
+    minHeight: 68,
+    overflow: "hidden",
+    paddingHorizontal: BAR_HORIZONTAL_PADDING,
+    paddingVertical: spacing.sm,
+    position: "relative",
     ...shadows.card,
   },
-  tabGroup: {
-    flex: 1,
-    flexDirection: "row",
-  },
-  noriLane: {
+  activeIndicator: {
     alignItems: "center",
-    justifyContent: "center",
-    minHeight: 78,
-    width: 92,
-  },
-  tabButton: {
-    alignItems: "center",
-    flex: 1,
-    gap: 3,
-    justifyContent: "center",
-    minHeight: 62,
-  },
-  iconWrap: {
-    alignItems: "center",
+    backgroundColor: colors.primary,
     borderRadius: radius.pill,
-    height: 32,
-    justifyContent: "center",
-    width: 38,
-  },
-  activeIconWrap: {
-    backgroundColor: "#F7D4BD",
-  },
-  tabLabel: {
-    ...typography.caption,
-    color: colors.muted,
-  },
-  activeLabel: {
-    color: colors.ink,
-  },
-  noriButton: {
-    alignItems: "center",
-    justifyContent: "center",
-    transform: [{ translateY: -22 }],
-  },
-  activeNoriButton: {
-    transform: [{ translateY: -22 }, { scale: 1.05 }],
-  },
-  noriOrb: {
-    alignItems: "center",
-    backgroundColor: colors.ink,
-    borderColor: colors.surface,
-    borderRadius: 34,
-    borderWidth: 4,
-    height: 68,
+    height: PILL_HEIGHT,
     justifyContent: "center",
     overflow: "hidden",
-    width: 68,
-    ...shadows.card,
+    position: "absolute",
+    top: spacing.sm,
+    zIndex: 2,
   },
-  orbBlob: {
-    borderRadius: 40,
+  liquidLayer: {
+    bottom: 0,
+    left: 0,
+    overflow: "hidden",
+    position: "absolute",
+    right: 0,
+    top: 0,
+  },
+  liquidBlob: {
     position: "absolute",
   },
-  orbOrange: {
-    backgroundColor: "#F38B42",
-    height: 52,
-    left: -12,
-    top: 6,
-    width: 52,
+  liquidOrange: {
+    backgroundColor: "#F58A46",
+    borderRadius: 54,
+    height: 70,
+    left: -22,
+    opacity: 0.95,
+    top: -14,
+    width: 82,
   },
-  orbSage: {
-    backgroundColor: "#8AB983",
-    height: 58,
-    right: -14,
-    top: -10,
+  liquidSage: {
+    backgroundColor: "#7BAE77",
+    borderRadius: 44,
+    bottom: -20,
+    height: 62,
+    opacity: 0.88,
+    right: -12,
+    width: 72,
+  },
+  liquidCream: {
+    backgroundColor: "#FFE3A3",
+    borderRadius: 34,
+    height: 44,
+    opacity: 0.7,
+    right: 28,
+    top: -14,
+    width: 48,
+  },
+  liquidSheen: {
+    backgroundColor: colors.white,
+    borderRadius: 30,
+    height: 18,
+    left: 22,
+    opacity: 0.18,
+    position: "absolute",
+    top: 8,
+    transform: [{ rotate: "-18deg" }],
     width: 58,
   },
-  orbCream: {
-    backgroundColor: "#FFE8AF",
-    bottom: -16,
-    height: 46,
-    right: 10,
-    width: 46,
+  activeIndicatorContent: {
+    alignItems: "center",
+    bottom: 0,
+    flexDirection: "row",
+    gap: spacing.sm,
+    justifyContent: "center",
+    left: 0,
+    paddingHorizontal: spacing.sm,
+    position: "absolute",
+    right: 0,
+    top: 0,
   },
-  noriText: {
-    color: colors.white,
-    fontSize: 24,
-    fontWeight: "900",
+  tabSlot: {
+    minHeight: 56,
     zIndex: 1,
+  },
+  tabPressable: {
+    alignItems: "center",
+    flex: 1,
+    justifyContent: "center",
+    minHeight: 56,
+  },
+  activeLabel: {
+    ...typography.caption,
+    color: colors.white,
+    fontWeight: "800",
   },
 });

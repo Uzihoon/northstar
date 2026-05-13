@@ -18,14 +18,13 @@ export default function RootLayout() {
           headerTitleStyle: { fontWeight: "800" },
         }}
       >
-        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="index" options={{ animation: "none", headerShown: false }} />
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="destinations/[id]" options={{ title: "Trip Setup" }} />
-        <Stack.Screen name="itineraries" options={{ headerShown: false }} />
-        <Stack.Screen name="nori" options={{ headerShown: false }} />
+        <Stack.Screen name="itineraries" options={{ animation: "none", headerShown: false }} />
+        <Stack.Screen name="nori" options={{ animation: "none", headerShown: false }} />
         <Stack.Screen name="plans/[id]" options={{ title: "Itinerary" }} />
-        <Stack.Screen name="profile" options={{ headerShown: false }} />
-        <Stack.Screen name="saved" options={{ headerShown: false }} />
+        <Stack.Screen name="profile" options={{ animation: "none", headerShown: false }} />
       </Stack>
     </AuthProvider>
   );

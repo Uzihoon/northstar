@@ -196,7 +196,7 @@ export default function DashboardScreen() {
           </View>
         </ScrollView>
 
-        <AppTabBar active="home" />
+        <AppTabBar active="explore" />
       </View>
     </Screen>
   );
