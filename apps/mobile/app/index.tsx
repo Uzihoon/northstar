@@ -106,6 +106,7 @@ export default function DashboardScreen() {
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>Where should Nori take you?</Text>
+              <Text style={styles.subtitle}>Discover your perfect escape.</Text>
             </View>
             <Pressable
               accessibilityRole="button"
@@ -241,6 +242,13 @@ const styles = StyleSheet.create({
   title: {
     ...typography.heading,
     maxWidth: 250,
+  },
+  subtitle: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: "400",
+    lineHeight: 20,
+    marginTop: spacing.xs,
   },
   avatar: {
     alignItems: "center",
