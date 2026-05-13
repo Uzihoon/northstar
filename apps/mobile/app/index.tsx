@@ -130,7 +130,7 @@ export default function DashboardScreen() {
               autoCapitalize="none"
               onChangeText={setSearchText}
               onSubmitEditing={submitSearch}
-              placeholder="Kyoto, quiet cafes, temples..."
+              placeholder="Search destinations or vibes"
               placeholderTextColor={colors.muted}
               returnKeyType="search"
               style={styles.searchInput}
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
   },
   searchCard: {
     alignItems: "center",
-    backgroundColor: colors.white,
+    backgroundColor: "#FFF7EA",
     borderColor: colors.clay,
     borderRadius: radius.md,
     borderWidth: 1,
