@@ -245,9 +245,9 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     color: colors.muted,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "400",
-    lineHeight: 20,
+    lineHeight: 21,
     marginTop: spacing.xs,
   },
   avatar: {
