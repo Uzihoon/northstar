@@ -1,25 +1,30 @@
 import type { ReactNode } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, type Edges } from "react-native-safe-area-context";
 
 import { colors, spacing } from "../theme/tokens";
 
 type ScreenProps = {
   children: ReactNode;
+  edges?: Edges;
   scroll?: boolean;
 };
 
-export function Screen({ children, scroll = true }: ScreenProps) {
+export function Screen({
+  children,
+  edges = ["top", "left", "right"],
+  scroll = true,
+}: ScreenProps) {
   if (!scroll) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={edges} style={styles.safeArea}>
         <View style={[styles.content, styles.staticContent]}>{children}</View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={edges} style={styles.safeArea}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}

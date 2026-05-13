@@ -2,7 +2,7 @@ import { Redirect, router } from "expo-router";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { useAuth } from "../src/auth/AuthContext";
-import { AppTabBar } from "../src/components/AppTabBar";
+import { AppTabBar, APP_TAB_BAR_OVERLAY_HEIGHT } from "../src/components/AppTabBar";
 import { Pill } from "../src/components/Pill";
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import { Screen } from "../src/components/Screen";
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingBottom: APP_TAB_BAR_OVERLAY_HEIGHT,
   },
   kicker: {
     ...typography.caption,

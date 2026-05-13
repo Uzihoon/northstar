@@ -14,7 +14,7 @@ import {
 
 import { sendNoriChat } from "../src/api/client";
 import { useAuth } from "../src/auth/AuthContext";
-import { AppTabBar } from "../src/components/AppTabBar";
+import { AppTabBar, APP_TAB_BAR_OVERLAY_HEIGHT } from "../src/components/AppTabBar";
 import { Screen } from "../src/components/Screen";
 import { colors, radius, shadows, spacing, typography } from "../src/theme/tokens";
 
@@ -260,6 +260,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: "row",
     gap: spacing.sm,
+    marginBottom: APP_TAB_BAR_OVERLAY_HEIGHT,
     padding: spacing.sm,
   },
   input: {

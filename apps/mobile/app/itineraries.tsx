@@ -12,7 +12,7 @@ import {
 import { listSavedPlans } from "../src/api/client";
 import type { SavedPlanSummary } from "../src/api/types";
 import { useAuth } from "../src/auth/AuthContext";
-import { AppTabBar } from "../src/components/AppTabBar";
+import { AppTabBar, APP_TAB_BAR_OVERLAY_HEIGHT } from "../src/components/AppTabBar";
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import { Screen } from "../src/components/Screen";
 import { colors, radius, shadows, spacing, typography } from "../src/theme/tokens";
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingBottom: APP_TAB_BAR_OVERLAY_HEIGHT,
   },
   kicker: {
     ...typography.caption,

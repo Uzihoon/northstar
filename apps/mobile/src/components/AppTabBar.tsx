@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { useEffect, useRef, useState } from "react";
 
-import { colors, radius, shadows, spacing, typography } from "../theme/tokens";
+import { colors, radius, spacing, typography } from "../theme/tokens";
 
 type TabKey = "explore" | "chat" | "trips" | "profile";
 
@@ -43,6 +43,7 @@ const TABS: TabConfig[] = [
 ];
 
 const BAR_HORIZONTAL_PADDING = spacing.sm;
+const BAR_VERTICAL_PADDING = 6;
 const ACTIVE_SLOT_WIDTH = 118;
 const INACTIVE_SLOT_WIDTH = 52;
 const COLLAPSED_PILL_SIZE = 52;
@@ -51,6 +52,9 @@ const COLLAPSED_BAR_WIDTH = BAR_HORIZONTAL_PADDING * 2 + INACTIVE_SLOT_WIDTH * T
 const EXPANDED_BAR_WIDTH =
   BAR_HORIZONTAL_PADDING * 2 + ACTIVE_SLOT_WIDTH + INACTIVE_SLOT_WIDTH * (TABS.length - 1);
 const MOTION_INPUT_RANGE = [0, 0.52, 1];
+const MENU_BAR_BACKGROUND = "rgba(255, 249, 240, 0.68)";
+
+export const APP_TAB_BAR_OVERLAY_HEIGHT = 92;
 
 export function AppTabBar({ active }: AppTabBarProps) {
   const [selectedTab, setSelectedTab] = useState<TabKey>(active);
@@ -177,7 +181,7 @@ export function AppTabBar({ active }: AppTabBarProps) {
   });
 
   return (
-    <View style={styles.wrap}>
+    <View pointerEvents="box-none" style={styles.wrap}>
       <Animated.View
         style={[styles.bar, { width: animatedBarWidth }]}
       >
@@ -345,21 +349,31 @@ function navigateTo(tab: TabKey) {
 const styles = StyleSheet.create({
   wrap: {
     alignItems: "center",
-    paddingTop: spacing.sm,
+    bottom: 0,
+    left: 0,
+    position: "absolute",
+    right: 0,
+    zIndex: 20,
   },
   bar: {
     alignItems: "center",
     alignSelf: "center",
-    backgroundColor: colors.surface,
+    backgroundColor: MENU_BAR_BACKGROUND,
+    borderColor: "rgba(39, 34, 29, 0.12)",
+    borderWidth: 1,
     borderRadius: radius.pill,
     flexDirection: "row",
     justifyContent: "center",
-    minHeight: 68,
+    minHeight: 64,
     overflow: "hidden",
     paddingHorizontal: BAR_HORIZONTAL_PADDING,
-    paddingVertical: spacing.sm,
+    paddingVertical: BAR_VERTICAL_PADDING,
     position: "relative",
-    ...shadows.card,
+    shadowColor: "#6A4B2B",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.1,
+    shadowRadius: 24,
+    elevation: 8,
   },
   activeIndicator: {
     alignItems: "center",
@@ -369,7 +383,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
     position: "absolute",
-    top: spacing.sm,
+    top: BAR_VERTICAL_PADDING,
     zIndex: 2,
   },
   liquidLayer: {

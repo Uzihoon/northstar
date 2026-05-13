@@ -13,7 +13,7 @@ import {
 import { listDestinations } from "../src/api/client";
 import type { Destination } from "../src/api/types";
 import { useAuth } from "../src/auth/AuthContext";
-import { AppTabBar } from "../src/components/AppTabBar";
+import { AppTabBar, APP_TAB_BAR_OVERLAY_HEIGHT } from "../src/components/AppTabBar";
 import { DestinationCard } from "../src/components/DestinationCard";
 import { Screen } from "../src/components/Screen";
 import { colors, radius, shadows, spacing, typography } from "../src/theme/tokens";
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingBottom: APP_TAB_BAR_OVERLAY_HEIGHT,
   },
   header: {
     alignItems: "flex-start",
