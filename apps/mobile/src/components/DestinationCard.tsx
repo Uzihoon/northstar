@@ -30,9 +30,9 @@ export function DestinationCard({ destination, onPress }: DestinationCardProps) 
       )}
       <View style={styles.body}>
         <Text style={styles.title}>{destination.city}, {destination.country}</Text>
-        <Text numberOfLines={3} style={styles.summary}>{destination.summary}</Text>
+        <Text ellipsizeMode="tail" numberOfLines={3} style={styles.summary}>{destination.summary}</Text>
         <View style={styles.pills}>
-          {destination.vibes.slice(0, 3).map((vibe) => (
+          {destination.vibes.slice(0, 2).map((vibe) => (
             <Pill key={vibe} label={vibe} tone="sage" />
           ))}
         </View>
@@ -135,6 +135,7 @@ const styles = StyleSheet.create({
   summary: {
     ...typography.body,
     color: colors.muted,
+    maxHeight: 72,
   },
   pills: {
     flexDirection: "row",
