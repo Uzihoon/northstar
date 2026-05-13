@@ -19,6 +19,18 @@ def test_search_destinations_filters_by_query_country_and_vibe() -> None:
   assert [destination.id for destination in destinations] == ["japan-kyoto"]
 
 
+def test_search_destinations_returns_seoul_catalog_entry() -> None:
+  destinations = search_destinations(
+    q="cafes neighborhoods",
+    country="South Korea",
+    vibe="cafes",
+  )
+
+  assert [destination.id for destination in destinations] == ["south-korea-seoul"]
+  assert destinations[0].rag.namespace == "south-korea/seoul"
+  assert "accommodation" in destinations[0].rag.doc_types
+
+
 def test_get_destination_returns_none_for_missing_id() -> None:
   destination = get_destination("missing-destination")
 

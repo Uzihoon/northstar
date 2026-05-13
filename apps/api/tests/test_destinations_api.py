@@ -41,6 +41,23 @@ def test_list_destinations_filters_by_query_and_vibe() -> None:
   assert [destination["id"] for destination in data["destinations"]] == ["japan-kyoto"]
 
 
+def test_list_destinations_returns_seoul_when_filtering_south_korea() -> None:
+  response = client.get(
+    "/destinations",
+    params={
+      "q": "cafes neighborhoods",
+      "country": "South Korea",
+      "vibe": "cafes",
+    },
+  )
+
+  assert response.status_code == 200
+
+  data = response.json()
+  assert [destination["id"] for destination in data["destinations"]] == ["south-korea-seoul"]
+  assert data["destinations"][0]["rag"]["namespace"] == "south-korea/seoul"
+
+
 def test_get_destination_returns_detail() -> None:
   response = client.get("/destinations/japan-kyoto")
 
@@ -56,6 +73,26 @@ def test_get_destination_returns_detail() -> None:
     "cafes",
     "attractions",
     "neighborhoods",
+  ]
+
+
+def test_get_destination_returns_seoul_detail() -> None:
+  response = client.get("/destinations/south-korea-seoul")
+
+  assert response.status_code == 200
+
+  data = response.json()
+  assert data["city"] == "Seoul"
+  assert data["country"] == "South Korea"
+  assert "cafes" in data["vibes"]
+  assert data["rag"]["doc_types"] == [
+    "overview",
+    "transport",
+    "restaurants",
+    "cafes",
+    "sightseeing",
+    "neighborhoods",
+    "accommodation",
   ]
 
 

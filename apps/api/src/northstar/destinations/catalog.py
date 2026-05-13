@@ -68,7 +68,77 @@ DESTINATIONS = [
         "Kyoto temples first time visitor guide",
       ],
     ),
-  )
+  ),
+  Destination(
+    id="south-korea-seoul",
+    city="Seoul",
+    country="South Korea",
+    country_slug="south-korea",
+    city_slug="seoul",
+    title="Seoul, South Korea",
+    summary="Palaces, playful cafes, street food, shopping districts, and fast-moving city energy.",
+    description=(
+      "Seoul works well for travelers who want a layered city trip: historic palaces, "
+      "distinct neighborhoods, cafe culture, markets, shopping, public transit, and "
+      "food-focused days with plenty of modern city texture."
+    ),
+    vibes=[
+      "cafes",
+      "neighborhoods",
+      "markets",
+      "culture",
+      "shopping",
+      "public transit",
+      "city energy",
+    ],
+    best_for=[
+      "first-time Korea",
+      "cafes",
+      "food markets",
+      "shopping",
+      "culture",
+      "neighborhood exploration",
+    ],
+    avoid_if=[
+      "you want a quiet small-town trip",
+      "you prefer beach resorts",
+      "you dislike dense city travel",
+    ],
+    suggested_duration_days=[3, 4, 5],
+    hero_image_url=None,
+    tags=[
+      "south korea",
+      "seoul",
+      "cafes",
+      "markets",
+      "palaces",
+      "shopping",
+      "street food",
+      "neighborhoods",
+      "public transit",
+    ],
+    rag=DestinationRagConfig(
+      namespace="south-korea/seoul",
+      country="south-korea",
+      city="seoul",
+      doc_types=[
+        "overview",
+        "transport",
+        "restaurants",
+        "cafes",
+        "sightseeing",
+        "neighborhoods",
+        "accommodation",
+      ],
+      source_queries=[
+        "Seoul cafe culture travel guide",
+        "Seoul neighborhoods first time visitor guide",
+        "Seoul public transport tourist guide",
+        "Seoul restaurants and street food travel guide",
+        "Seoul sightseeing palaces markets guide",
+      ],
+    ),
+  ),
 ]
 
 
