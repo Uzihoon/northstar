@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import {
   BedDouble,
+  Bus,
   CalendarDays,
   ChevronRight,
   Clock3,
@@ -318,7 +319,7 @@ function getTimelineIcon(card: MobilePlanCard): LucideIcon {
     return Coffee;
   }
   if (card.kind === "transport") {
-    return Navigation;
+    return Bus;
   }
   if (card.kind === "break_time" || card.kind === "free_time") {
     return Clock3;
