@@ -24,8 +24,8 @@ import {
 } from "react-native";
 import { Calendar, type DateData } from "react-native-calendars";
 
-import { getDestination, getPlanRun, startPlanRun } from "../../src/api/client";
-import type { Destination, ItineraryPlanRunResponse } from "../../src/api/types";
+import { getDestination, startPlanRun } from "../../src/api/client";
+import type { Destination } from "../../src/api/types";
 import { getDestinationImageSource } from "../../src/assets/destinationImages";
 import { Pill } from "../../src/components/Pill";
 import { PrimaryButton } from "../../src/components/PrimaryButton";
@@ -117,8 +117,6 @@ export default function DestinationDetailScreen() {
   const [interests, setInterests] = useState<string[]>(["cafes", "quiet neighborhoods"]);
   const [foodPreferences, setFoodPreferences] = useState<string[]>(["vegetarian", "coffee"]);
   const [note, setNote] = useState("");
-  const [run, setRun] = useState<ItineraryPlanRunResponse | null>(null);
-  const [runId, setRunId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
@@ -159,49 +157,6 @@ export default function DestinationDetailScreen() {
     };
   }, [destinationId]);
 
-  useEffect(() => {
-    if (!runId) {
-      return undefined;
-    }
-
-    let isMounted = true;
-
-    const interval = setInterval(async () => {
-      try {
-        const nextRun = await getPlanRun(runId);
-
-        if (!isMounted) {
-          return;
-        }
-
-        setRun(nextRun);
-
-        if (nextRun.status === "completed" && nextRun.plan_id) {
-          setRunId(null);
-          router.replace({
-            pathname: "/plans/[id]",
-            params: { id: nextRun.plan_id },
-          });
-        }
-
-        if (nextRun.status === "failed") {
-          setRunId(null);
-          setErrorMessage(nextRun.error_message ?? "Planning failed.");
-        }
-      } catch (error) {
-        if (isMounted) {
-          setRunId(null);
-          setErrorMessage(error instanceof Error ? error.message : "Could not poll planning run.");
-        }
-      }
-    }, 2000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [runId]);
-
   const normalizedStartDate = useMemo(() => normalizeIsoDate(startDate), [startDate]);
   const normalizedEndDate = useMemo(() => normalizeIsoDate(endDate), [endDate]);
   const suggestedDurationDays = destination?.suggested_duration_days[0] ?? 2;
@@ -235,7 +190,7 @@ export default function DestinationDetailScreen() {
   }, [arrivalTime, durationDays, normalizedEndDate, normalizedStartDate, note, startPlace]);
 
   async function startPlanning() {
-    if (!destinationId || isStarting || runId) {
+    if (!destinationId || isStarting) {
       return;
     }
 
@@ -260,20 +215,10 @@ export default function DestinationDetailScreen() {
         foodPreferences,
       });
 
-      setRun({
-        run_id: createdRun.run_id,
-        original_prompt: "",
-        model_name: "",
-        save: true,
-        status: "queued",
-        progress_events: createdRun.progress_events,
-        error_message: null,
-        plan_id: null,
-        trip_request_id: null,
-        created_at: createdRun.created_at,
-        updated_at: createdRun.updated_at,
+      router.push({
+        pathname: "/planning/[runId]",
+        params: { runId: createdRun.run_id },
       });
-      setRunId(createdRun.run_id);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Could not start planning.");
     } finally {
@@ -518,24 +463,11 @@ export default function DestinationDetailScreen() {
           <Text style={styles.ctaTitle}>Ready when you are.</Text>
           <Text style={styles.ctaText}>I will turn this into a day-by-day plan with timing, movement, and options.</Text>
           <PrimaryButton
-            disabled={isStarting || Boolean(runId)}
-            label={runId ? "Nori is planning..." : "Plan this trip"}
+            disabled={isStarting}
+            label={isStarting ? "Starting Nori..." : "Plan this trip"}
             onPress={startPlanning}
           />
         </View>
-
-        {run ? (
-          <View style={styles.runCard}>
-            <Text style={styles.sectionTitle}>Nori is planning</Text>
-            {run.progress_events.map((event, index) => (
-              <View key={`${event.status}-${index}`} style={styles.runEvent}>
-                <View style={styles.runDot} />
-                <Text style={styles.runText}>{event.message}</Text>
-              </View>
-            ))}
-            {runId ? <ActivityIndicator color={colors.primary} /> : null}
-          </View>
-        ) : null}
       </ScrollView>
 
       <Modal
@@ -1112,30 +1044,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "400",
     lineHeight: 20,
-  },
-  runCard: {
-    backgroundColor: colors.surface,
-    borderColor: colors.clay,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: spacing.md,
-    padding: spacing.lg,
-  },
-  runEvent: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  runDot: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.pill,
-    height: 10,
-    width: 10,
-  },
-  runText: {
-    ...typography.body,
-    color: colors.muted,
-    flex: 1,
   },
   stateCard: {
     alignItems: "center",

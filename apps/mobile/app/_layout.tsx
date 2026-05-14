@@ -23,6 +23,7 @@ export default function RootLayout() {
         <Stack.Screen name="destinations/[id]" options={{ title: "Trip Setup" }} />
         <Stack.Screen name="itineraries" options={{ animation: "none", headerShown: false }} />
         <Stack.Screen name="nori" options={{ animation: "none", headerShown: false }} />
+        <Stack.Screen name="planning/[runId]" options={{ animation: "none", headerShown: false }} />
         <Stack.Screen name="plans/[id]" options={{ title: "Itinerary" }} />
         <Stack.Screen name="profile" options={{ animation: "none", headerShown: false }} />
       </Stack>
