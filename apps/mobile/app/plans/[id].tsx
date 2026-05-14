@@ -590,11 +590,11 @@ const styles = StyleSheet.create({
     width: 72,
   },
   dayTabSheen: {
-    backgroundColor: colors.white,
+    backgroundColor: "#F6C85F",
     borderRadius: 30,
     height: 14,
     left: 20,
-    opacity: 0.18,
+    opacity: 0.42,
     position: "absolute",
     top: 8,
     transform: [{ rotate: "-18deg" }],
