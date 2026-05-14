@@ -14,7 +14,6 @@ import {
 
 import { sendNoriChat } from "../src/api/client";
 import { useAuth } from "../src/auth/AuthContext";
-import { AppTabBar, APP_TAB_BAR_OVERLAY_HEIGHT } from "../src/components/AppTabBar";
 import { Screen } from "../src/components/Screen";
 import { colors, radius, shadows, spacing, typography } from "../src/theme/tokens";
 
@@ -145,8 +144,6 @@ export default function NoriScreen() {
             <Text style={styles.sendButtonText}>Send</Text>
           </Pressable>
         </View>
-
-        <AppTabBar active="chat" />
       </KeyboardAvoidingView>
     </Screen>
   );
@@ -271,7 +268,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: "row",
     gap: spacing.sm,
-    marginBottom: APP_TAB_BAR_OVERLAY_HEIGHT,
+    marginBottom: spacing.xl,
     marginHorizontal: spacing.xl,
     padding: spacing.sm,
   },

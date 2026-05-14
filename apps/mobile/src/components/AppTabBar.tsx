@@ -2,7 +2,6 @@ import { router } from "expo-router";
 import {
   Compass,
   Luggage,
-  MessageCircle,
   UserRound,
   type LucideIcon,
 } from "lucide-react-native";
@@ -18,7 +17,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { colors, radius, spacing, typography } from "../theme/tokens";
 
-type TabKey = "explore" | "chat" | "trips" | "profile";
+type TabKey = "explore" | "trips" | "profile";
 
 type AppTabBarProps = {
   active: TabKey;
@@ -37,7 +36,6 @@ type ActiveMotion = {
 
 const TABS: TabConfig[] = [
   { key: "explore", label: "Explore", Icon: Compass },
-  { key: "chat", label: "Chat", Icon: MessageCircle },
   { key: "trips", label: "Trips", Icon: Luggage },
   { key: "profile", label: "Profile", Icon: UserRound },
 ];
@@ -338,8 +336,6 @@ function getCollapsedIndicatorLeft(tab: TabKey) {
 function navigateTo(tab: TabKey) {
   if (tab === "explore") {
     router.replace("/");
-  } else if (tab === "chat") {
-    router.replace("/nori");
   } else if (tab === "trips") {
     router.replace("/itineraries");
   } else {
