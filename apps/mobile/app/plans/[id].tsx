@@ -1,16 +1,12 @@
 import { router, useLocalSearchParams } from "expo-router";
 import {
   BedDouble,
-  BookOpen,
   CalendarDays,
   ChevronRight,
   Clock3,
   Coffee,
   MapPin,
   Navigation,
-  ShoppingBag,
-  Store,
-  Train,
   Utensils,
   type LucideIcon,
 } from "lucide-react-native";
@@ -52,6 +48,7 @@ export default function PlanSummaryScreen() {
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const scrollRef = useRef<ScrollView | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -113,9 +110,20 @@ export default function PlanSummaryScreen() {
 
   const activeDay = plan.days[activeDayIndex] ?? plan.days[0];
   const planDateLabel = getPlanDateLabel(plan.days);
+  const nextDayIndex = getNextDayIndex(activeDayIndex, plan.days.length);
+  const nextDayLabel = activeDayIndex < plan.days.length - 1
+    ? `Go to Day ${nextDayIndex + 1}`
+    : "Go back to Day 1";
+
+  function jumpToDay(index: number) {
+    setActiveDayIndex(index);
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ animated: true, y: 0 });
+    });
+  }
 
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} scrollRef={scrollRef}>
       <View style={styles.hero}>
         <View style={styles.heroArtwork}>
           <View style={styles.heroBlobOrange} />
@@ -184,7 +192,7 @@ export default function PlanSummaryScreen() {
         </View>
       ) : null}
 
-      <PrimaryButton label="Back to journeys" onPress={() => router.replace("/itineraries")} tone="secondary" />
+      <PrimaryButton label={nextDayLabel} onPress={() => jumpToDay(nextDayIndex)} tone="secondary" />
     </Screen>
   );
 }
@@ -252,8 +260,14 @@ function TimelineItem({ card, isLast }: { card: MobilePlanCard; isLast: boolean 
               <Text style={[styles.kindPillText, accentStyle.pillText]}>{formatKind(card.kind)}</Text>
             </View>
           </View>
-          {card.area ? <Text numberOfLines={1} style={styles.areaText}>{card.area}</Text> : null}
         </View>
+
+        {card.area ? (
+          <View style={styles.locationRow}>
+            <MapPin color={colors.sage} size={15} strokeWidth={2.2} />
+            <Text numberOfLines={2} style={styles.locationText}>{card.area}</Text>
+          </View>
+        ) : null}
 
         <Text style={styles.cardTitle}>{card.title}</Text>
         <Text numberOfLines={3} style={styles.cardDescription}>{card.description}</Text>
@@ -297,31 +311,20 @@ function MetaPill({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
 }
 
 function getTimelineIcon(card: MobilePlanCard): LucideIcon {
-  const text = `${card.kind} ${card.title} ${card.tags.join(" ")} ${card.area ?? ""}`.toLowerCase();
-
-  if (text.includes("hotel") || text.includes("accommodation")) {
-    return BedDouble;
-  }
-  if (text.includes("book")) {
-    return BookOpen;
-  }
-  if (text.includes("market")) {
-    return Store;
-  }
-  if (text.includes("shop")) {
-    return ShoppingBag;
-  }
   if (card.kind === "meal") {
     return Utensils;
   }
-  if (card.kind === "cafe" || text.includes("coffee")) {
+  if (card.kind === "cafe") {
     return Coffee;
   }
   if (card.kind === "transport") {
-    return text.includes("train") ? Train : Navigation;
+    return Navigation;
   }
   if (card.kind === "break_time" || card.kind === "free_time") {
     return Clock3;
+  }
+  if (card.kind === "accommodation") {
+    return BedDouble;
   }
 
   return MapPin;
@@ -401,6 +404,14 @@ function formatShortDate(value: string | null) {
 
 function getStopCount(days: MobilePlanDay[]) {
   return days.reduce((total, day) => total + day.cards.length, 0);
+}
+
+function getNextDayIndex(currentIndex: number, dayCount: number) {
+  if (dayCount === 0 || currentIndex >= dayCount - 1) {
+    return 0;
+  }
+
+  return currentIndex + 1;
 }
 
 function getDaySummary(day: MobilePlanDay) {
@@ -664,12 +675,13 @@ const styles = StyleSheet.create({
   },
   timelineCard: {
     backgroundColor: colors.surface,
+    borderColor: colors.clay,
+    borderWidth: StyleSheet.hairlineWidth,
     borderLeftWidth: 4,
     borderRadius: radius.lg,
     flex: 1,
     gap: spacing.sm,
     padding: spacing.lg,
-    ...shadows.card,
   },
   timelineCardHeader: {
     alignItems: "center",
@@ -704,10 +716,16 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     textTransform: "capitalize",
   },
-  areaText: {
+  locationRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
+  locationText: {
     ...typography.caption,
-    color: colors.muted,
+    color: colors.moss,
     flexShrink: 1,
+    fontWeight: "700",
   },
   cardTitle: {
     ...typography.subheading,

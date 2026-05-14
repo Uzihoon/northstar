@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView, type Edges } from "react-native-safe-area-context";
 
@@ -9,6 +9,7 @@ type ScreenProps = {
   edges?: Edges;
   padded?: boolean;
   scroll?: boolean;
+  scrollRef?: RefObject<ScrollView | null>;
 };
 
 export function Screen({
@@ -16,6 +17,7 @@ export function Screen({
   edges = ["top", "left", "right"],
   padded = true,
   scroll = true,
+  scrollRef,
 }: ScreenProps) {
   if (!scroll) {
     return (
@@ -28,6 +30,7 @@ export function Screen({
   return (
     <SafeAreaView edges={edges} style={styles.safeArea}>
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={padded ? styles.content : undefined}
         showsVerticalScrollIndicator={false}
