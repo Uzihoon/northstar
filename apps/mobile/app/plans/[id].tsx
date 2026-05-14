@@ -559,6 +559,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
   },
   activeDayTab: {
+    backgroundColor: colors.moss,
     borderColor: "transparent",
   },
   dayTabLiquid: {
