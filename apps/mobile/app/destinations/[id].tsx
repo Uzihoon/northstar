@@ -1,7 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import {
   CalendarDays,
-  ChevronLeft,
   Clock3,
   Gauge,
   MapPin,
@@ -294,11 +293,6 @@ export default function DestinationDetailScreen() {
         showsVerticalScrollIndicator={false}
         style={styles.scroll}
       >
-        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
-          <ChevronLeft color={colors.ink} size={18} strokeWidth={2.4} />
-          <Text style={styles.backButtonText}>Back</Text>
-        </Pressable>
-
         <View style={styles.destinationCard}>
           <View style={styles.destinationArtwork}>
             <View style={styles.destinationBlobOrange} />
@@ -630,23 +624,10 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
     paddingBottom: spacing.xxl,
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.md,
+    paddingTop: spacing.xs,
   },
   scroll: {
     flex: 1,
-  },
-  backButton: {
-    alignItems: "center",
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    gap: spacing.xs,
-    minHeight: 40,
-    paddingRight: spacing.md,
-  },
-  backButtonText: {
-    ...typography.caption,
-    color: colors.ink,
-    fontWeight: "800",
   },
   destinationCard: {
     backgroundColor: colors.surface,
