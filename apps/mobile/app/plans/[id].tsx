@@ -3,7 +3,6 @@ import {
   BedDouble,
   Bus,
   CalendarDays,
-  ChevronRight,
   Clock3,
   Coffee,
   Landmark,
@@ -285,8 +284,7 @@ function TimelineItem({ card, isLast }: { card: MobilePlanCard; isLast: boolean 
             {card.options.slice(0, 3).map((option) => (
               <View key={`${option.category}-${option.name}`} style={styles.optionCard}>
                 <View style={styles.optionTopRow}>
-                  <Text numberOfLines={1} style={styles.optionName}>{option.name}</Text>
-                  <ChevronRight color={colors.muted} size={15} strokeWidth={2.2} />
+                  <Text style={styles.optionName}>{option.name}</Text>
                 </View>
                 <Text style={styles.optionMeta}>
                   {[option.category, option.estimated_cost].filter(Boolean).join(" - ")}
@@ -744,7 +742,6 @@ const styles = StyleSheet.create({
   },
   optionName: {
     ...typography.body,
-    flex: 1,
     fontWeight: "800",
   },
   optionMeta: {
