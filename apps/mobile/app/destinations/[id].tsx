@@ -3,7 +3,6 @@ import {
   CalendarDays,
   Clock3,
   Gauge,
-  MapPin,
   Plane,
   Sparkles,
   Utensils,
@@ -25,7 +24,7 @@ import {
 
 import { getDestination, getPlanRun, startPlanRun } from "../../src/api/client";
 import type { Destination, ItineraryPlanRunResponse } from "../../src/api/types";
-import { getDestinationCityName, getDestinationImageSource } from "../../src/assets/destinationImages";
+import { getDestinationImageSource } from "../../src/assets/destinationImages";
 import { Pill } from "../../src/components/Pill";
 import { PrimaryButton } from "../../src/components/PrimaryButton";
 import { Screen } from "../../src/components/Screen";
@@ -313,14 +312,9 @@ export default function DestinationDetailScreen() {
                 <View style={styles.destinationBlobSage} />
               </>
             )}
-            <Text numberOfLines={1} style={styles.destinationCode}>{getDestinationCityName(destination)}</Text>
           </View>
 
           <View style={styles.destinationCopy}>
-            <View style={styles.destinationMetaRow}>
-              <MapPin color={colors.moss} size={16} strokeWidth={2.3} />
-              <Text style={styles.destinationMeta}>{destination.city}, {destination.country}</Text>
-            </View>
             <Text style={styles.title}>{destination.title}</Text>
             <Text style={styles.description}>{destination.description}</Text>
             <View style={styles.pillGrid}>
@@ -654,12 +648,9 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   destinationArtwork: {
-    alignItems: "flex-start",
     backgroundColor: "#E9D8BF",
-    height: 112,
-    justifyContent: "flex-end",
+    height: 148,
     overflow: "hidden",
-    padding: spacing.lg,
     position: "relative",
   },
   destinationImageBackground: {
@@ -693,26 +684,9 @@ const styles = StyleSheet.create({
     right: -46,
     width: 180,
   },
-  destinationCode: {
-    color: colors.surface,
-    fontSize: 32,
-    fontWeight: "900",
-    letterSpacing: -0.4,
-    zIndex: 1,
-  },
   destinationCopy: {
     gap: spacing.sm,
     padding: spacing.lg,
-  },
-  destinationMetaRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: spacing.xs,
-  },
-  destinationMeta: {
-    ...typography.caption,
-    color: colors.moss,
-    fontWeight: "800",
   },
   title: {
     ...typography.heading,
