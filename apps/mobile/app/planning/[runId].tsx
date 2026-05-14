@@ -185,10 +185,6 @@ export default function PlanningRunScreen() {
     inputRange: [0, 0.5, 1],
     outputRange: [0.22, 0.09, 0.22],
   });
-  const glowScale = bounce.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [0.96, 1.06, 0.96],
-  });
 
   return (
     <Screen edges={["top", "left", "right", "bottom"]} padded={false} scroll={false}>
@@ -198,14 +194,6 @@ export default function PlanningRunScreen() {
 
         <View style={styles.centerStage}>
           <View style={styles.animationWrap}>
-            <Animated.View
-              style={[
-                styles.glowRing,
-                {
-                  transform: [{ scale: glowScale }],
-                },
-              ]}
-            />
             <Animated.View
               style={[
                 styles.shadow,
@@ -346,15 +334,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     width: 240,
   },
-  glowRing: {
-    backgroundColor: "rgba(255, 249, 240, 0.78)",
-    borderColor: "rgba(216, 195, 165, 0.42)",
-    borderRadius: 98,
-    borderWidth: StyleSheet.hairlineWidth,
-    height: 196,
-    position: "absolute",
-    width: 196,
-  },
   shadow: {
     backgroundColor: "rgba(39, 34, 29, 0.22)",
     borderRadius: 45,
@@ -364,8 +343,6 @@ const styles = StyleSheet.create({
     width: 128,
   },
   shape: {
-    borderColor: "rgba(255, 255, 255, 0.72)",
-    borderWidth: 2,
     position: "absolute",
     ...shadows.card,
   },
