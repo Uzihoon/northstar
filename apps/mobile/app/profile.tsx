@@ -114,7 +114,6 @@ export default function ProfileScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <Text style={styles.kicker}>Profile</Text>
             <Text style={styles.title}>Your travel taste</Text>
             <Text style={styles.subtitle}>
               These are the preferences Nori uses by default when planning for you.
@@ -355,17 +354,15 @@ const styles = StyleSheet.create({
   header: {
     gap: spacing.xs,
   },
-  kicker: {
-    ...typography.caption,
-    color: colors.primaryPressed,
-    textTransform: "uppercase",
-  },
   title: {
-    ...typography.title,
+    ...typography.heading,
   },
   subtitle: {
-    ...typography.body,
     color: colors.muted,
+    fontSize: 16,
+    fontWeight: "400",
+    lineHeight: 22,
+    marginTop: spacing.xs,
   },
   heroCard: {
     alignItems: "center",
@@ -573,8 +570,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceStrong,
   },
   cardBody: {
-    ...typography.body,
     color: colors.muted,
+    fontSize: 14,
+    fontWeight: "400",
+    lineHeight: 20,
   },
   emptyText: {
     ...typography.caption,
