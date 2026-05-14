@@ -116,7 +116,7 @@ export default function ProfileScreen() {
           <View style={styles.header}>
             <Text style={styles.title}>Your travel taste</Text>
             <Text style={styles.subtitle}>
-              These are the preferences Nori uses by default when planning for you.
+              This is what I’ll keep in mind when I plan for you.
             </Text>
           </View>
 

@@ -117,7 +117,7 @@ export default function OnboardingScreen() {
           <Pill label="Meet Nori" tone="sage" />
           <Text style={styles.title}>Let's make future trips feel less generic.</Text>
           <Text style={styles.subtitle}>
-            Chat naturally for a minute. Nori quietly learns the kind of trips you like.
+            Tell me what feels good when you travel, and I’ll remember the useful bits.
           </Text>
           <PrimaryButton
             label="Skip chat"

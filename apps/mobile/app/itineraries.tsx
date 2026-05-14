@@ -80,7 +80,7 @@ export default function ItinerariesScreen() {
         >
           <View>
             <Text style={styles.title}>My Journeys</Text>
-            <Text style={styles.subtitle}>Plans Nori helped shape for you.</Text>
+            <Text style={styles.subtitle}>I saved the trips we shaped together, in case one calls again.</Text>
           </View>
 
           {isLoading ? (

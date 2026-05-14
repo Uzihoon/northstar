@@ -145,7 +145,7 @@ export default function DashboardScreen() {
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>Where should Nori take you?</Text>
-              <Text style={styles.subtitle}>Discover your perfect escape.</Text>
+              <Text style={styles.subtitle}>Tell me the vibe, and I’ll find somewhere that fits.</Text>
             </View>
             <Pressable
               accessibilityRole="button"
