@@ -1,12 +1,26 @@
 import { router, useLocalSearchParams } from "expo-router";
+import {
+  CalendarDays,
+  ChevronLeft,
+  Clock3,
+  Gauge,
+  MapPin,
+  Plane,
+  Sparkles,
+  Utensils,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  type KeyboardTypeOptions,
 } from "react-native";
 
 import { getDestination, getPlanRun, startPlanRun } from "../../src/api/client";
@@ -23,9 +37,9 @@ const BUDGET_OPTIONS = [
 ];
 
 const PACE_OPTIONS = [
-  { label: "Relaxed", value: "relaxed" },
+  { label: "Slow", value: "relaxed" },
   { label: "Balanced", value: "balanced" },
-  { label: "Fast", value: "fast" },
+  { label: "Full", value: "fast" },
 ];
 
 const INTEREST_OPTIONS = [
@@ -44,6 +58,29 @@ const FOOD_OPTIONS = [
   "local cuisine",
 ];
 
+type SectionHeaderProps = {
+  description: string;
+  icon: LucideIcon;
+  title: string;
+};
+
+type TextFieldProps = {
+  helper?: string;
+  icon: LucideIcon;
+  keyboardType?: KeyboardTypeOptions;
+  label: string;
+  multiline?: boolean;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+  value: string;
+};
+
+type SelectableChipProps = {
+  isSelected: boolean;
+  label: string;
+  onPress: () => void;
+};
+
 function firstParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -59,7 +96,10 @@ export default function DestinationDetailScreen() {
   const destinationId = firstParam(params.id);
 
   const [destination, setDestination] = useState<Destination | null>(null);
-  const [durationDays, setDurationDays] = useState("2");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [startPlace, setStartPlace] = useState("");
+  const [arrivalTime, setArrivalTime] = useState("");
   const [budgetLevel, setBudgetLevel] = useState("midrange");
   const [pace, setPace] = useState("relaxed");
   const [interests, setInterests] = useState<string[]>(["cafes", "quiet neighborhoods"]);
@@ -85,7 +125,6 @@ export default function DestinationDetailScreen() {
         const data = await getDestination(destinationId);
         if (isMounted) {
           setDestination(data);
-          setDurationDays(String(data.suggested_duration_days[0] ?? 2));
           setInterests(data.vibes.slice(0, 2));
           setErrorMessage(null);
         }
@@ -150,18 +189,43 @@ export default function DestinationDetailScreen() {
     };
   }, [runId]);
 
+  const normalizedStartDate = useMemo(() => normalizeIsoDate(startDate), [startDate]);
+  const normalizedEndDate = useMemo(() => normalizeIsoDate(endDate), [endDate]);
+  const suggestedDurationDays = destination?.suggested_duration_days[0] ?? 2;
+  const derivedDurationDays = getTripDurationDays(startDate, endDate);
+  const durationDays = derivedDurationDays ?? suggestedDurationDays;
+  const durationLabel = formatDurationLabel(durationDays, derivedDurationDays ? "from your dates" : "suggested");
+
   const additionalInfo = useMemo(() => {
-    const parts = [`Duration: ${durationDays || "2"} days.`];
+    const parts = [`Duration: ${durationDays} days.`];
+
+    if (normalizedStartDate && normalizedEndDate) {
+      parts.push(`Travel dates: ${normalizedStartDate} to ${normalizedEndDate}.`);
+    }
+
+    if (startPlace.trim()) {
+      parts.push(`Starting from: ${startPlace.trim()}.`);
+    }
+
+    if (arrivalTime.trim()) {
+      parts.push(`Arrival or preferred start timing: ${arrivalTime.trim()}.`);
+    }
 
     if (note.trim()) {
-      parts.push(note.trim());
+      parts.push(`Traveler note: ${note.trim()}`);
     }
 
     return parts.join("\n");
-  }, [durationDays, note]);
+  }, [arrivalTime, durationDays, normalizedEndDate, normalizedStartDate, note, startPlace]);
 
   async function startPlanning() {
     if (!destinationId || isStarting || runId) {
+      return;
+    }
+
+    const dateError = validateTripDates(startDate, endDate);
+    if (dateError) {
+      setErrorMessage(dateError);
       return;
     }
 
@@ -172,6 +236,8 @@ export default function DestinationDetailScreen() {
       const createdRun = await startPlanRun({
         destinationId,
         additionalInfo,
+        startDate: normalizedStartDate,
+        endDate: normalizedEndDate,
         budgetLevel,
         pace,
         interests,
@@ -222,98 +288,176 @@ export default function DestinationDetailScreen() {
   }
 
   return (
-    <Screen>
-      <View style={styles.hero}>
-        <Text style={styles.destinationCode}>{destination.city.slice(0, 2).toUpperCase()}</Text>
-        <View style={styles.heroCopy}>
-          <Text style={styles.title}>{destination.title}</Text>
-          <Text style={styles.description}>{destination.description}</Text>
+    <Screen padded={false} scroll={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        style={styles.scroll}
+      >
+        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
+          <ChevronLeft color={colors.ink} size={18} strokeWidth={2.4} />
+          <Text style={styles.backButtonText}>Back</Text>
+        </Pressable>
+
+        <View style={styles.destinationCard}>
+          <View style={styles.destinationArtwork}>
+            <View style={styles.destinationBlobOrange} />
+            <View style={styles.destinationBlobSage} />
+            <Text style={styles.destinationCode}>{destination.city.slice(0, 2).toUpperCase()}</Text>
+          </View>
+
+          <View style={styles.destinationCopy}>
+            <View style={styles.destinationMetaRow}>
+              <MapPin color={colors.moss} size={16} strokeWidth={2.3} />
+              <Text style={styles.destinationMeta}>{destination.city}, {destination.country}</Text>
+            </View>
+            <Text style={styles.title}>{destination.title}</Text>
+            <Text style={styles.description}>{destination.description}</Text>
+            <View style={styles.pillGrid}>
+              {destination.vibes.slice(0, 4).map((vibe) => (
+                <Pill key={vibe} label={vibe} tone="sage" />
+              ))}
+            </View>
+          </View>
         </View>
-      </View>
 
-      <View style={styles.pillGrid}>
-        {destination.vibes.map((vibe) => (
-          <Pill key={vibe} label={vibe} tone="sage" />
-        ))}
-      </View>
+        <View style={styles.card}>
+          <SectionHeader
+            description="Dates first. The rest helps me time the days properly."
+            icon={CalendarDays}
+            title="Trip details"
+          />
 
-      <View style={styles.formCard}>
-        <Text style={styles.sectionTitle}>Trip basics</Text>
+          <View style={styles.dateGrid}>
+            <TextField
+              icon={CalendarDays}
+              label="From"
+              onChangeText={setStartDate}
+              placeholder="2026-06-12"
+              value={startDate}
+            />
+            <TextField
+              icon={CalendarDays}
+              label="To"
+              onChangeText={setEndDate}
+              placeholder="2026-06-14"
+              value={endDate}
+            />
+          </View>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>How many days?</Text>
-          <TextInput
-            keyboardType="number-pad"
-            onChangeText={setDurationDays}
-            style={styles.input}
-            value={durationDays}
+          <View style={styles.durationBadge}>
+            <CalendarDays color={colors.primaryPressed} size={16} strokeWidth={2.4} />
+            <Text style={styles.durationText}>{durationLabel}</Text>
+          </View>
+
+          <TextField
+            helper="Optional, but useful for travel-time assumptions."
+            icon={Plane}
+            label="Starting from"
+            onChangeText={setStartPlace}
+            placeholder="Home, airport, station..."
+            value={startPlace}
+          />
+
+          <TextField
+            helper="Optional. Example: land at 10 AM, start after lunch."
+            icon={Clock3}
+            label="Arrival or start time"
+            onChangeText={setArrivalTime}
+            placeholder="Land 10 AM, start after lunch..."
+            value={arrivalTime}
           />
         </View>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Budget</Text>
-          <View style={styles.optionRow}>
-            {BUDGET_OPTIONS.map((option) => (
-              <SelectableChip
-                isSelected={budgetLevel === option.value}
-                key={option.value}
-                label={option.label}
-                onPress={() => setBudgetLevel(option.value)}
-              />
-            ))}
+        <View style={styles.card}>
+          <SectionHeader
+            description="This sets the default mood unless you nudge me."
+            icon={Gauge}
+            title="Travel style"
+          />
+
+          <View style={styles.field}>
+            <View style={styles.labelRow}>
+              <Wallet color={colors.moss} size={15} strokeWidth={2.4} />
+              <Text style={styles.label}>Budget</Text>
+            </View>
+            <View style={styles.optionRow}>
+              {BUDGET_OPTIONS.map((option) => (
+                <SelectableChip
+                  isSelected={budgetLevel === option.value}
+                  key={option.value}
+                  label={option.label}
+                  onPress={() => setBudgetLevel(option.value)}
+                />
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <View style={styles.labelRow}>
+              <Gauge color={colors.moss} size={15} strokeWidth={2.4} />
+              <Text style={styles.label}>Pace</Text>
+            </View>
+            <View style={styles.optionRow}>
+              {PACE_OPTIONS.map((option) => (
+                <SelectableChip
+                  isSelected={pace === option.value}
+                  key={option.value}
+                  label={option.label}
+                  onPress={() => setPace(option.value)}
+                />
+              ))}
+            </View>
           </View>
         </View>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Pace</Text>
-          <View style={styles.optionRow}>
-            {PACE_OPTIONS.map((option) => (
-              <SelectableChip
-                isSelected={pace === option.value}
-                key={option.value}
-                label={option.label}
-                onPress={() => setPace(option.value)}
-              />
-            ))}
-          </View>
-        </View>
+        <View style={styles.card}>
+          <SectionHeader
+            description="Pick a few signals. One note is enough if something matters."
+            icon={Sparkles}
+            title="What should I lean into?"
+          />
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Themes</Text>
-          <View style={styles.optionRow}>
-            {INTEREST_OPTIONS.map((interest) => (
-              <SelectableChip
-                isSelected={interests.includes(interest)}
-                key={interest}
-                label={interest}
-                onPress={() => setInterests((current) => toggleValue(current, interest))}
-              />
-            ))}
+          <View style={styles.field}>
+            <View style={styles.labelRow}>
+              <Sparkles color={colors.moss} size={15} strokeWidth={2.4} />
+              <Text style={styles.label}>Themes</Text>
+            </View>
+            <View style={styles.optionRow}>
+              {INTEREST_OPTIONS.map((interest) => (
+                <SelectableChip
+                  isSelected={interests.includes(interest)}
+                  key={interest}
+                  label={interest}
+                  onPress={() => setInterests((current) => toggleValue(current, interest))}
+                />
+              ))}
+            </View>
           </View>
-        </View>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Food notes</Text>
-          <View style={styles.optionRow}>
-            {FOOD_OPTIONS.map((food) => (
-              <SelectableChip
-                isSelected={foodPreferences.includes(food)}
-                key={food}
-                label={food}
-                onPress={() => setFoodPreferences((current) => toggleValue(current, food))}
-              />
-            ))}
+          <View style={styles.field}>
+            <View style={styles.labelRow}>
+              <Utensils color={colors.moss} size={15} strokeWidth={2.4} />
+              <Text style={styles.label}>Food</Text>
+            </View>
+            <View style={styles.optionRow}>
+              {FOOD_OPTIONS.map((food) => (
+                <SelectableChip
+                  isSelected={foodPreferences.includes(food)}
+                  key={food}
+                  label={food}
+                  onPress={() => setFoodPreferences((current) => toggleValue(current, food))}
+                />
+              ))}
+            </View>
           </View>
-        </View>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Anything else?</Text>
-          <TextInput
+          <TextField
+            icon={Sparkles}
+            label="Nori note"
             multiline
             onChangeText={setNote}
-            placeholder="Example: keep mornings gentle, avoid crowded dinner spots..."
-            placeholderTextColor={colors.muted}
-            style={[styles.input, styles.noteInput]}
+            placeholder="Keep mornings gentle. Avoid crowded dinner spots."
             value={note}
           />
         </View>
@@ -324,39 +468,84 @@ export default function DestinationDetailScreen() {
           </View>
         ) : null}
 
-        <PrimaryButton
-          disabled={isStarting || Boolean(runId)}
-          label={runId ? "Planning..." : "Start itinerary"}
-          onPress={startPlanning}
-        />
-      </View>
-
-      {run ? (
-        <View style={styles.runCard}>
-          <Text style={styles.sectionTitle}>Nori is planning</Text>
-          {run.progress_events.map((event, index) => (
-            <View key={`${event.status}-${index}`} style={styles.runEvent}>
-              <View style={styles.runDot} />
-              <Text style={styles.runText}>{event.message}</Text>
-            </View>
-          ))}
-          {runId ? <ActivityIndicator color={colors.primary} /> : null}
+        <View style={styles.ctaCard}>
+          <Text style={styles.ctaTitle}>Ready when you are.</Text>
+          <Text style={styles.ctaText}>I will turn this into a day-by-day plan with timing, movement, and options.</Text>
+          <PrimaryButton
+            disabled={isStarting || Boolean(runId)}
+            label={runId ? "Nori is planning..." : "Plan this trip"}
+            onPress={startPlanning}
+          />
         </View>
-      ) : null}
+
+        {run ? (
+          <View style={styles.runCard}>
+            <Text style={styles.sectionTitle}>Nori is planning</Text>
+            {run.progress_events.map((event, index) => (
+              <View key={`${event.status}-${index}`} style={styles.runEvent}>
+                <View style={styles.runDot} />
+                <Text style={styles.runText}>{event.message}</Text>
+              </View>
+            ))}
+            {runId ? <ActivityIndicator color={colors.primary} /> : null}
+          </View>
+        ) : null}
+      </ScrollView>
     </Screen>
   );
 }
 
-type SelectableChipProps = {
-  isSelected: boolean;
-  label: string;
-  onPress: () => void;
-};
+function SectionHeader({ description, icon: Icon, title }: SectionHeaderProps) {
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionIcon}>
+        <Icon color={colors.moss} size={17} strokeWidth={2.4} />
+      </View>
+      <View style={styles.sectionCopy}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        <Text style={styles.sectionDescription}>{description}</Text>
+      </View>
+    </View>
+  );
+}
+
+function TextField({
+  helper,
+  icon: Icon,
+  keyboardType,
+  label,
+  multiline = false,
+  onChangeText,
+  placeholder,
+  value,
+}: TextFieldProps) {
+  return (
+    <View style={styles.inputGroup}>
+      <View style={styles.labelRow}>
+        <Icon color={colors.moss} size={15} strokeWidth={2.4} />
+        <Text style={styles.label}>{label}</Text>
+      </View>
+      <TextInput
+        autoCapitalize="none"
+        keyboardType={keyboardType}
+        multiline={multiline}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.muted}
+        style={[styles.input, multiline && styles.noteInput]}
+        textAlignVertical={multiline ? "top" : "center"}
+        value={value}
+      />
+      {helper ? <Text style={styles.helperText}>{helper}</Text> : null}
+    </View>
+  );
+}
 
 function SelectableChip({ isSelected, label, onPress }: SelectableChipProps) {
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ selected: isSelected }}
       onPress={onPress}
       style={[styles.selectableChip, isSelected && styles.selectedChip]}
     >
@@ -367,31 +556,161 @@ function SelectableChip({ isSelected, label, onPress }: SelectableChipProps) {
   );
 }
 
+function normalizeIsoDate(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed || !/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return undefined;
+  }
+
+  const [year, month, day] = trimmed.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year
+    || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day
+  ) {
+    return undefined;
+  }
+
+  return trimmed;
+}
+
+function getUtcDateValue(value: string): number | undefined {
+  const normalized = normalizeIsoDate(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const [year, month, day] = normalized.split("-").map(Number);
+  return Date.UTC(year, month - 1, day);
+}
+
+function getTripDurationDays(start: string, end: string): number | undefined {
+  const startValue = getUtcDateValue(start);
+  const endValue = getUtcDateValue(end);
+
+  if (startValue === undefined || endValue === undefined || endValue < startValue) {
+    return undefined;
+  }
+
+  return Math.round((endValue - startValue) / 86_400_000) + 1;
+}
+
+function validateTripDates(start: string, end: string): string | null {
+  const hasStart = start.trim().length > 0;
+  const hasEnd = end.trim().length > 0;
+
+  if (hasStart !== hasEnd) {
+    return "Add both dates, or leave the dates blank for now.";
+  }
+
+  if (!hasStart && !hasEnd) {
+    return null;
+  }
+
+  if (!normalizeIsoDate(start) || !normalizeIsoDate(end)) {
+    return "Use YYYY-MM-DD for travel dates.";
+  }
+
+  if (getTripDurationDays(start, end) === undefined) {
+    return "End date must be after the start date.";
+  }
+
+  return null;
+}
+
+function formatDurationLabel(days: number, source: "from your dates" | "suggested") {
+  const dayLabel = days === 1 ? "day" : "days";
+  return `${days} ${dayLabel} ${source}`;
+}
+
 const styles = StyleSheet.create({
-  hero: {
-    backgroundColor: colors.moss,
-    borderRadius: radius.lg,
+  content: {
     gap: spacing.lg,
+    paddingBottom: spacing.xxl,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+  },
+  scroll: {
+    flex: 1,
+  },
+  backButton: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    gap: spacing.xs,
+    minHeight: 40,
+    paddingRight: spacing.md,
+  },
+  backButtonText: {
+    ...typography.caption,
+    color: colors.ink,
+    fontWeight: "800",
+  },
+  destinationCard: {
+    backgroundColor: colors.surface,
+    borderColor: "rgba(216, 195, 165, 0.76)",
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: "hidden",
-    padding: spacing.xl,
     ...shadows.card,
   },
-  destinationCode: {
-    color: "#DDEBCF",
-    fontSize: 72,
-    fontWeight: "900",
-    letterSpacing: 3,
-    opacity: 0.9,
+  destinationArtwork: {
+    alignItems: "flex-start",
+    backgroundColor: "#E9D8BF",
+    height: 112,
+    justifyContent: "flex-end",
+    overflow: "hidden",
+    padding: spacing.lg,
+    position: "relative",
   },
-  heroCopy: {
+  destinationBlobOrange: {
+    backgroundColor: "#F09A57",
+    borderRadius: 100,
+    height: 148,
+    left: -38,
+    opacity: 0.72,
+    position: "absolute",
+    top: -58,
+    width: 148,
+  },
+  destinationBlobSage: {
+    backgroundColor: "#789B6F",
+    borderRadius: 120,
+    bottom: -88,
+    height: 180,
+    opacity: 0.78,
+    position: "absolute",
+    right: -46,
+    width: 180,
+  },
+  destinationCode: {
+    color: colors.surface,
+    fontSize: 38,
+    fontWeight: "900",
+    letterSpacing: 2,
+    zIndex: 1,
+  },
+  destinationCopy: {
     gap: spacing.sm,
+    padding: spacing.lg,
+  },
+  destinationMetaRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
+  destinationMeta: {
+    ...typography.caption,
+    color: colors.moss,
+    fontWeight: "800",
   },
   title: {
-    ...typography.title,
-    color: colors.surface,
+    ...typography.heading,
   },
   description: {
-    color: "#E9F0E2",
+    color: colors.muted,
     fontSize: 15,
     fontWeight: "400",
     lineHeight: 21,
@@ -401,39 +720,96 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: spacing.sm,
   },
-  formCard: {
+  card: {
     backgroundColor: colors.surface,
     borderColor: colors.clay,
     borderRadius: radius.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     gap: spacing.lg,
     padding: spacing.lg,
     ...shadows.card,
   },
+  sectionHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  sectionIcon: {
+    alignItems: "center",
+    backgroundColor: "#E1E9DA",
+    borderRadius: radius.pill,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  sectionCopy: {
+    flex: 1,
+    gap: spacing.xs,
+  },
   sectionTitle: {
-    ...typography.heading,
+    ...typography.subheading,
+  },
+  sectionDescription: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: "400",
+    lineHeight: 20,
+  },
+  dateGrid: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  durationBadge: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "#F7D4BD",
+    borderRadius: radius.pill,
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  durationText: {
+    ...typography.caption,
+    color: colors.primaryPressed,
+    fontWeight: "800",
   },
   field: {
     gap: spacing.sm,
   },
+  inputGroup: {
+    flex: 1,
+    gap: spacing.sm,
+  },
+  labelRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
   label: {
     ...typography.caption,
     color: colors.moss,
+    fontWeight: "800",
     textTransform: "uppercase",
   },
   input: {
-    ...typography.body,
     backgroundColor: colors.background,
-    borderColor: colors.clay,
+    borderColor: "rgba(216, 195, 165, 0.82)",
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    color: colors.ink,
+    fontSize: 16,
+    fontWeight: "500",
     minHeight: 52,
     paddingHorizontal: spacing.lg,
+  },
+  helperText: {
+    ...typography.caption,
+    color: colors.muted,
   },
   noteInput: {
     minHeight: 112,
     paddingTop: spacing.md,
-    textAlignVertical: "top",
   },
   optionRow: {
     flexDirection: "row",
@@ -444,7 +820,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderColor: colors.clay,
     borderRadius: radius.pill,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
@@ -458,6 +834,7 @@ const styles = StyleSheet.create({
   },
   selectedChipText: {
     color: colors.primaryPressed,
+    fontWeight: "800",
   },
   errorCard: {
     backgroundColor: "#F7D4BD",
@@ -468,11 +845,28 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.error,
   },
+  ctaCard: {
+    backgroundColor: colors.moss,
+    borderRadius: radius.lg,
+    gap: spacing.md,
+    padding: spacing.lg,
+    ...shadows.card,
+  },
+  ctaTitle: {
+    ...typography.subheading,
+    color: colors.surface,
+  },
+  ctaText: {
+    color: "#E9F0E2",
+    fontSize: 14,
+    fontWeight: "400",
+    lineHeight: 20,
+  },
   runCard: {
     backgroundColor: colors.surface,
     borderColor: colors.clay,
     borderRadius: radius.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     gap: spacing.md,
     padding: spacing.lg,
   },
@@ -497,7 +891,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderColor: colors.clay,
     borderRadius: radius.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     gap: spacing.md,
     padding: spacing.xl,
   },

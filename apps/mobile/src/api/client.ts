@@ -43,6 +43,8 @@ export async function getDestination(destinationId: string): Promise<Destination
 export async function startPlanRun(input: {
   destinationId: string;
   additionalInfo?: string;
+  startDate?: string;
+  endDate?: string;
   budgetLevel?: string;
   pace?: string;
   interests?: string[];
@@ -53,6 +55,8 @@ export async function startPlanRun(input: {
     body: JSON.stringify({
       destination_ids: [input.destinationId],
       additional_info: input.additionalInfo,
+      start_date: input.startDate,
+      end_date: input.endDate,
       budget_level: input.budgetLevel,
       pace: input.pace,
       interests: input.interests ?? [],
