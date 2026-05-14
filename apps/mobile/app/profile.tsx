@@ -122,6 +122,12 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.heroCard}>
+            <View pointerEvents="none" style={styles.heroLiquidLayer}>
+              <View style={[styles.heroLiquidBlob, styles.heroLiquidOrange]} />
+              <View style={[styles.heroLiquidBlob, styles.heroLiquidSage]} />
+              <View style={[styles.heroLiquidBlob, styles.heroLiquidCream]} />
+              <View style={styles.heroLiquidSheen} />
+            </View>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>J</Text>
             </View>
@@ -363,12 +369,63 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     alignItems: "center",
-    backgroundColor: colors.moss,
+    backgroundColor: colors.primary,
     borderRadius: radius.lg,
     flexDirection: "row",
     gap: spacing.lg,
+    overflow: "hidden",
     padding: spacing.xl,
+    position: "relative",
     ...shadows.card,
+  },
+  heroLiquidLayer: {
+    bottom: 0,
+    left: 0,
+    overflow: "hidden",
+    position: "absolute",
+    right: 0,
+    top: 0,
+  },
+  heroLiquidBlob: {
+    position: "absolute",
+  },
+  heroLiquidOrange: {
+    backgroundColor: "#F58A46",
+    borderRadius: 120,
+    height: 170,
+    left: -42,
+    opacity: 0.92,
+    top: -56,
+    width: 188,
+  },
+  heroLiquidSage: {
+    backgroundColor: "#7BAE77",
+    borderRadius: 140,
+    bottom: -70,
+    height: 172,
+    opacity: 0.9,
+    right: -32,
+    width: 188,
+  },
+  heroLiquidCream: {
+    backgroundColor: "#FFE3A3",
+    borderRadius: 80,
+    height: 96,
+    opacity: 0.64,
+    right: 84,
+    top: -34,
+    width: 108,
+  },
+  heroLiquidSheen: {
+    backgroundColor: colors.white,
+    borderRadius: 36,
+    height: 20,
+    left: 78,
+    opacity: 0.18,
+    position: "absolute",
+    top: 28,
+    transform: [{ rotate: "-18deg" }],
+    width: 78,
   },
   avatar: {
     alignItems: "center",
@@ -377,6 +434,7 @@ const styles = StyleSheet.create({
     height: 72,
     justifyContent: "center",
     width: 72,
+    zIndex: 1,
   },
   avatarText: {
     color: colors.moss,
@@ -386,6 +444,7 @@ const styles = StyleSheet.create({
   heroCopy: {
     flex: 1,
     gap: spacing.sm,
+    zIndex: 1,
   },
   heroTopRow: {
     alignItems: "center",
