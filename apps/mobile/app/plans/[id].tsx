@@ -1,6 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
 import {
-  ArrowLeft,
   BedDouble,
   BookOpen,
   CalendarDays,
@@ -116,7 +115,7 @@ export default function PlanSummaryScreen() {
   const planDateLabel = getPlanDateLabel(plan.days);
 
   return (
-    <Screen>
+    <Screen edges={["left", "right"]}>
       <View style={styles.hero}>
         <View style={styles.heroArtwork}>
           <View style={styles.heroBlobOrange} />
@@ -127,20 +126,6 @@ export default function PlanSummaryScreen() {
         </View>
 
         <View style={styles.heroContent}>
-          <View style={styles.topRow}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.back()}
-              style={styles.backButton}
-            >
-              <ArrowLeft color={colors.ink} size={19} strokeWidth={2.4} />
-            </Pressable>
-            <Pill
-              label={plan.status === "ready_with_warnings" ? "Ready with notes" : "Ready"}
-              tone={plan.status === "ready_with_warnings" ? "orange" : "sage"}
-            />
-          </View>
-
           <Text numberOfLines={2} style={styles.title}>{plan.title}</Text>
           <View style={styles.destinationRow}>
             <MapPin color={colors.moss} size={17} strokeWidth={2.3} />
@@ -167,6 +152,7 @@ export default function PlanSummaryScreen() {
         contentContainerStyle={styles.dayTabs}
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={styles.dayTabScroll}
       >
         {plan.days.map((day, index) => (
           <DayTab
@@ -216,15 +202,7 @@ function DayTab({ day, isActive, onPress }: DayTabProps) {
 
   const width = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [72, 124],
-  });
-  const labelOpacity = progress.interpolate({
-    inputRange: [0, 0.55, 1],
-    outputRange: [0, 0.2, 1],
-  });
-  const labelWidth = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 58],
+    outputRange: [82, 116],
   });
 
   return (
@@ -242,15 +220,9 @@ function DayTab({ day, isActive, onPress }: DayTabProps) {
             <View style={styles.dayTabSheen} />
           </View>
         ) : null}
-        <Text style={[styles.dayTabNumber, isActive && styles.activeDayTabText]}>
-          {day.day_number}
-        </Text>
-        <Animated.Text
-          numberOfLines={1}
-          style={[styles.dayTabLabel, { opacity: labelOpacity, width: labelWidth }]}
-        >
+        <Text style={[styles.dayTabLabel, isActive && styles.activeDayTabText]}>
           Day {day.day_number}
-        </Animated.Text>
+        </Text>
       </Pressable>
     </Animated.View>
   );
@@ -264,7 +236,6 @@ function TimelineItem({ card, isLast }: { card: MobilePlanCard; isLast: boolean 
   return (
     <View style={styles.timelineRow}>
       <View style={styles.timelineRail}>
-        <Text style={styles.timelineTime}>{card.time}</Text>
         <View style={[styles.iconBubble, accentStyle.bubble]}>
           <Icon color={accentStyle.iconColor} size={18} strokeWidth={2.4} />
         </View>
@@ -273,8 +244,13 @@ function TimelineItem({ card, isLast }: { card: MobilePlanCard; isLast: boolean 
 
       <View style={[styles.timelineCard, accentStyle.card]}>
         <View style={styles.timelineCardHeader}>
-          <View style={[styles.kindPill, accentStyle.pill]}>
-            <Text style={[styles.kindPillText, accentStyle.pillText]}>{formatKind(card.kind)}</Text>
+          <View style={styles.cardHeaderBadges}>
+            <View style={styles.timePill}>
+              <Text style={styles.timePillText}>{card.time}</Text>
+            </View>
+            <View style={[styles.kindPill, accentStyle.pill]}>
+              <Text style={[styles.kindPillText, accentStyle.pillText]}>{formatKind(card.kind)}</Text>
+            </View>
           </View>
           {card.area ? <Text numberOfLines={1} style={styles.areaText}>{card.area}</Text> : null}
         </View>
@@ -516,21 +492,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   heroContent: {
-    gap: spacing.md,
+    gap: spacing.sm,
     padding: spacing.lg,
-  },
-  topRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  backButton: {
-    alignItems: "center",
-    backgroundColor: colors.background,
-    borderRadius: radius.pill,
-    height: 42,
-    justifyContent: "center",
-    width: 42,
   },
   title: {
     ...typography.heading,
@@ -569,25 +532,35 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: spacing.sm,
   },
+  dayTabScroll: {
+    alignSelf: "center",
+    backgroundColor: "rgba(255, 249, 240, 0.68)",
+    borderColor: "rgba(39, 34, 29, 0.12)",
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    flexGrow: 0,
+    maxWidth: "100%",
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xs,
+  },
   dayTabs: {
-    gap: spacing.sm,
-    paddingRight: spacing.xl,
+    alignItems: "center",
+    gap: spacing.xs,
+    justifyContent: "center",
   },
   dayTabWrap: {
-    height: 52,
+    height: 48,
   },
   dayTab: {
     alignItems: "center",
-    backgroundColor: colors.surface,
-    borderColor: colors.clay,
+    backgroundColor: "transparent",
+    borderColor: "transparent",
     borderRadius: radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
     flex: 1,
     flexDirection: "row",
-    gap: spacing.sm,
     justifyContent: "center",
     overflow: "hidden",
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
   },
   activeDayTab: {
     borderColor: "transparent",
@@ -639,7 +612,7 @@ const styles = StyleSheet.create({
   },
   dayTabLabel: {
     ...typography.caption,
-    color: colors.white,
+    color: colors.ink,
     fontWeight: "900",
     zIndex: 1,
   },
@@ -673,15 +646,7 @@ const styles = StyleSheet.create({
   },
   timelineRail: {
     alignItems: "center",
-    width: 62,
-  },
-  timelineTime: {
-    ...typography.caption,
-    color: colors.primaryPressed,
-    fontSize: 11,
-    lineHeight: 14,
-    marginBottom: spacing.sm,
-    textAlign: "center",
+    width: 42,
   },
   iconBubble: {
     alignItems: "center",
@@ -711,6 +676,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.sm,
     justifyContent: "space-between",
+  },
+  cardHeaderBadges: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexShrink: 0,
+    gap: spacing.xs,
+  },
+  timePill: {
+    backgroundColor: colors.background,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  timePillText: {
+    ...typography.caption,
+    color: colors.primaryPressed,
+    fontWeight: "900",
   },
   kindPill: {
     borderRadius: radius.pill,
