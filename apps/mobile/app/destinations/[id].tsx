@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   ImageBackground,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -21,6 +22,7 @@ import {
   View,
   type KeyboardTypeOptions,
 } from "react-native";
+import { Calendar, type DateData } from "react-native-calendars";
 
 import { getDestination, getPlanRun, startPlanRun } from "../../src/api/client";
 import type { Destination, ItineraryPlanRunResponse } from "../../src/api/types";
@@ -58,10 +60,20 @@ const FOOD_OPTIONS = [
   "local cuisine",
 ];
 
+const CALENDAR_RANGE_COLOR = "#F58A46";
+const CALENDAR_RANGE_MIDDLE_COLOR = "#FCE4D2";
+
 type SectionHeaderProps = {
   description: string;
   icon: LucideIcon;
   title: string;
+};
+
+type DatePickerFieldProps = {
+  label: string;
+  onPress: () => void;
+  placeholder: string;
+  value: string;
 };
 
 type TextFieldProps = {
@@ -109,6 +121,7 @@ export default function DestinationDetailScreen() {
   const [runId, setRunId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
+  const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -195,6 +208,9 @@ export default function DestinationDetailScreen() {
   const derivedDurationDays = getTripDurationDays(startDate, endDate);
   const durationDays = derivedDurationDays ?? suggestedDurationDays;
   const durationLabel = formatDurationLabel(durationDays, derivedDurationDays ? "from your dates" : "suggested");
+  const markedDates = useMemo(() => buildMarkedDates(startDate, endDate), [endDate, startDate]);
+  const initialCalendarDate = startDate || getTodayIsoDate();
+  const canApplyDateRange = !startDate || Boolean(endDate);
 
   const additionalInfo = useMemo(() => {
     const parts = [`Duration: ${durationDays} days.`];
@@ -265,6 +281,34 @@ export default function DestinationDetailScreen() {
     }
   }
 
+  function openCalendar() {
+    setErrorMessage(null);
+    setIsCalendarVisible(true);
+  }
+
+  function selectCalendarDay(day: DateData) {
+    const selectedDate = day.dateString;
+
+    if (!startDate || endDate) {
+      setStartDate(selectedDate);
+      setEndDate("");
+      return;
+    }
+
+    if (compareIsoDates(selectedDate, startDate) < 0) {
+      setStartDate(selectedDate);
+      setEndDate("");
+      return;
+    }
+
+    setEndDate(selectedDate);
+  }
+
+  function clearDateRange() {
+    setStartDate("");
+    setEndDate("");
+  }
+
   if (isLoading) {
     return (
       <Screen>
@@ -333,18 +377,16 @@ export default function DestinationDetailScreen() {
           />
 
           <View style={styles.dateGrid}>
-            <TextField
-              icon={CalendarDays}
+            <DatePickerField
               label="From"
-              onChangeText={setStartDate}
-              placeholder="2026-06-12"
+              onPress={openCalendar}
+              placeholder="Choose start"
               value={startDate}
             />
-            <TextField
-              icon={CalendarDays}
+            <DatePickerField
               label="To"
-              onChangeText={setEndDate}
-              placeholder="2026-06-14"
+              onPress={openCalendar}
+              placeholder="Choose end"
               value={endDate}
             />
           </View>
@@ -495,7 +537,81 @@ export default function DestinationDetailScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setIsCalendarVisible(false)}
+        transparent
+        visible={isCalendarVisible}
+      >
+        <View style={styles.modalRoot}>
+          <Pressable
+            accessibilityLabel="Close date picker"
+            accessibilityRole="button"
+            onPress={() => setIsCalendarVisible(false)}
+            style={styles.modalBackdrop}
+          />
+          <View style={styles.calendarSheet}>
+            <View style={styles.calendarHeader}>
+              <View>
+                <Text style={styles.calendarTitle}>Choose trip dates</Text>
+                <Text style={styles.calendarSubtitle}>
+                  {startDate && !endDate
+                    ? "Now tap the day you come home."
+                    : "Tap a start date, then an end date."}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                onPress={clearDateRange}
+                style={styles.clearDatesButton}
+              >
+                <Text style={styles.clearDatesText}>Clear</Text>
+              </Pressable>
+            </View>
+
+            <Calendar
+              current={initialCalendarDate}
+              firstDay={0}
+              markedDates={markedDates}
+              markingType="period"
+              minDate={getTodayIsoDate()}
+              onDayPress={selectCalendarDay}
+              style={styles.calendar}
+              theme={calendarTheme}
+            />
+
+            <View style={styles.calendarFooter}>
+              <Text style={styles.calendarRangeText}>
+                {formatDateRangeSummary(startDate, endDate)}
+              </Text>
+              <PrimaryButton
+                disabled={!canApplyDateRange}
+                label="Done"
+                onPress={() => setIsCalendarVisible(false)}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Screen>
+  );
+}
+
+function DatePickerField({ label, onPress, placeholder, value }: DatePickerFieldProps) {
+  return (
+    <View style={styles.inputGroup}>
+      <View style={styles.labelRow}>
+        <CalendarDays color={colors.moss} size={15} strokeWidth={2.4} />
+        <Text style={styles.label}>{label}</Text>
+      </View>
+      <Pressable accessibilityRole="button" onPress={onPress} style={styles.datePickerField}>
+        <Text style={[styles.datePickerValue, !value && styles.datePickerPlaceholder]}>
+          {value ? formatDisplayDate(value) : placeholder}
+        </Text>
+        <CalendarDays color={colors.primaryPressed} size={17} strokeWidth={2.4} />
+      </Pressable>
+    </View>
   );
 }
 
@@ -601,6 +717,121 @@ function getTripDurationDays(start: string, end: string): number | undefined {
   return Math.round((endValue - startValue) / 86_400_000) + 1;
 }
 
+function compareIsoDates(left: string, right: string) {
+  const leftValue = getUtcDateValue(left);
+  const rightValue = getUtcDateValue(right);
+
+  if (leftValue === undefined || rightValue === undefined) {
+    return 0;
+  }
+
+  return leftValue - rightValue;
+}
+
+function getTodayIsoDate() {
+  const today = new Date();
+
+  return formatIsoDateParts(today.getFullYear(), today.getMonth() + 1, today.getDate());
+}
+
+function addDays(value: string, days: number) {
+  const dateValue = getUtcDateValue(value);
+
+  if (dateValue === undefined) {
+    return "";
+  }
+
+  return new Date(dateValue + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+function formatIsoDateParts(year: number, month: number, day: number) {
+  return [
+    year.toString().padStart(4, "0"),
+    month.toString().padStart(2, "0"),
+    day.toString().padStart(2, "0"),
+  ].join("-");
+}
+
+function buildMarkedDates(start: string, end: string) {
+  const normalizedStart = normalizeIsoDate(start);
+  const normalizedEnd = normalizeIsoDate(end);
+
+  if (!normalizedStart) {
+    return {};
+  }
+
+  if (!normalizedEnd) {
+    return {
+      [normalizedStart]: {
+        color: CALENDAR_RANGE_COLOR,
+        endingDay: true,
+        startingDay: true,
+        textColor: colors.surface,
+      },
+    };
+  }
+
+  const dateCount = getTripDurationDays(normalizedStart, normalizedEnd);
+
+  if (!dateCount) {
+    return {};
+  }
+
+  const markedDates: Record<string, {
+    color: string;
+    endingDay?: boolean;
+    startingDay?: boolean;
+    textColor: string;
+  }> = {};
+
+  for (let index = 0; index < dateCount; index += 1) {
+    const date = addDays(normalizedStart, index);
+    markedDates[date] = {
+      color: index === 0 || index === dateCount - 1
+        ? CALENDAR_RANGE_COLOR
+        : CALENDAR_RANGE_MIDDLE_COLOR,
+      endingDay: index === dateCount - 1,
+      startingDay: index === 0,
+      textColor: index === 0 || index === dateCount - 1
+        ? colors.surface
+        : colors.ink,
+    };
+  }
+
+  return markedDates;
+}
+
+function formatDisplayDate(value: string) {
+  const normalized = normalizeIsoDate(value);
+
+  if (!normalized) {
+    return value;
+  }
+
+  const dateValue = getUtcDateValue(normalized);
+
+  if (dateValue === undefined) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+  }).format(new Date(dateValue));
+}
+
+function formatDateRangeSummary(start: string, end: string) {
+  if (!start && !end) {
+    return "No dates selected yet.";
+  }
+
+  if (start && !end) {
+    return `Starts ${formatDisplayDate(start)}. Choose an end date.`;
+  }
+
+  return `${formatDisplayDate(start)} - ${formatDisplayDate(end)}`;
+}
+
 function validateTripDates(start: string, end: string): string | null {
   const hasStart = start.trim().length > 0;
   const hasEnd = end.trim().length > 0;
@@ -628,6 +859,22 @@ function formatDurationLabel(days: number, source: "from your dates" | "suggeste
   const dayLabel = days === 1 ? "day" : "days";
   return `${days} ${dayLabel} ${source}`;
 }
+
+const calendarTheme = {
+  arrowColor: colors.primaryPressed,
+  calendarBackground: colors.surface,
+  dayTextColor: colors.ink,
+  monthTextColor: colors.ink,
+  selectedDayBackgroundColor: CALENDAR_RANGE_COLOR,
+  selectedDayTextColor: colors.surface,
+  textDayFontSize: 15,
+  textDayFontWeight: "600" as const,
+  textDisabledColor: "#D7CFC2",
+  textMonthFontSize: 17,
+  textMonthFontWeight: "900" as const,
+  textSectionTitleColor: colors.muted,
+  todayTextColor: colors.primaryPressed,
+};
 
 const styles = StyleSheet.create({
   content: {
@@ -785,6 +1032,28 @@ const styles = StyleSheet.create({
     minHeight: 52,
     paddingHorizontal: spacing.lg,
   },
+  datePickerField: {
+    alignItems: "center",
+    backgroundColor: colors.background,
+    borderColor: "rgba(216, 195, 165, 0.82)",
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    gap: spacing.sm,
+    justifyContent: "space-between",
+    minHeight: 52,
+    paddingHorizontal: spacing.lg,
+  },
+  datePickerValue: {
+    color: colors.ink,
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  datePickerPlaceholder: {
+    color: colors.muted,
+    fontWeight: "500",
+  },
   helperText: {
     ...typography.caption,
     color: colors.muted,
@@ -883,6 +1152,66 @@ const styles = StyleSheet.create({
   stateText: {
     ...typography.body,
     color: colors.muted,
+    textAlign: "center",
+  },
+  modalRoot: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(39, 34, 29, 0.36)",
+  },
+  calendarSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    gap: spacing.lg,
+    padding: spacing.xl,
+    paddingBottom: spacing.xxl,
+  },
+  calendarHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: spacing.md,
+    justifyContent: "space-between",
+  },
+  calendarTitle: {
+    ...typography.subheading,
+  },
+  calendarSubtitle: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: "400",
+    lineHeight: 20,
+    marginTop: spacing.xs,
+  },
+  clearDatesButton: {
+    backgroundColor: colors.background,
+    borderColor: colors.clay,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  clearDatesText: {
+    ...typography.caption,
+    color: colors.primaryPressed,
+    fontWeight: "800",
+  },
+  calendar: {
+    borderColor: colors.clay,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+  },
+  calendarFooter: {
+    gap: spacing.md,
+  },
+  calendarRangeText: {
+    ...typography.body,
+    color: colors.moss,
+    fontWeight: "800",
     textAlign: "center",
   },
 });
