@@ -11,8 +11,8 @@ import {
   View,
 } from "react-native";
 
-import { listDestinations } from "../src/api/client";
-import type { Destination } from "../src/api/types";
+import { listDestinations, listSavedPlans } from "../src/api/client";
+import type { Destination, SavedPlanSummary } from "../src/api/types";
 import { useAuth } from "../src/auth/AuthContext";
 import { AppTabBar, APP_TAB_BAR_OVERLAY_HEIGHT } from "../src/components/AppTabBar";
 import { DestinationCard } from "../src/components/DestinationCard";
@@ -28,10 +28,12 @@ const CATEGORY_FILTERS = [
   { label: "Walkable", value: "walkable" },
 ];
 const SEARCH_BORDER_COLOR = "rgba(216, 195, 165, 0.72)";
+const PAST_JOURNEY_LIMIT = 3;
 
 export default function DashboardScreen() {
   const { isAuthenticated } = useAuth();
   const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [pastPlans, setPastPlans] = useState<SavedPlanSummary[]>([]);
   const [searchText, setSearchText] = useState("");
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
@@ -41,7 +43,7 @@ export default function DashboardScreen() {
   useEffect(() => {
     let isMounted = true;
 
-    async function load() {
+    async function loadDestinations() {
       try {
         const data = await listDestinations();
         if (isMounted) {
@@ -59,8 +61,28 @@ export default function DashboardScreen() {
       }
     }
 
+    async function loadPastPlans() {
+      try {
+        const data = await listSavedPlans();
+        if (isMounted) {
+          setPastPlans(
+            [...data]
+              .sort((left, right) => (
+                new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
+              ))
+              .slice(0, PAST_JOURNEY_LIMIT),
+          );
+        }
+      } catch {
+        if (isMounted) {
+          setPastPlans([]);
+        }
+      }
+    }
+
     if (isAuthenticated) {
-      load();
+      loadDestinations();
+      loadPastPlans();
     }
 
     return () => {
@@ -95,6 +117,19 @@ export default function DashboardScreen() {
     setQuery(searchText.trim());
   }
 
+  function formatJourneyDate(createdAt: string) {
+    const date = new Date(createdAt);
+
+    if (Number.isNaN(date.getTime())) {
+      return "Recent trip";
+    }
+
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      year: "numeric",
+    }).format(date);
+  }
+
   if (!isAuthenticated) {
     return <Redirect href="/onboarding" />;
   }
@@ -102,7 +137,11 @@ export default function DashboardScreen() {
   return (
     <Screen padded={false} scroll={false}>
       <View style={styles.container}>
-        <View style={styles.content}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          style={styles.pageScroll}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>Where should Nori take you?</Text>
@@ -215,7 +254,58 @@ export default function DashboardScreen() {
               ))}
             </View>
           </ScrollView>
-        </View>
+
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>My Past Journeys</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.replace("/itineraries")}
+              style={styles.viewAllButton}
+            >
+              <Text style={styles.viewAllText}>View all</Text>
+            </Pressable>
+          </View>
+
+          <ScrollView
+            contentContainerStyle={styles.pastJourneyScrollContent}
+            horizontal
+            style={styles.pastJourneyScroll}
+            showsHorizontalScrollIndicator={false}
+          >
+            {pastPlans.length > 0 ? (
+              pastPlans.map((plan) => (
+                <Pressable
+                  accessibilityRole="button"
+                  key={plan.plan_id}
+                  onPress={() => router.push({
+                    pathname: "/plans/[id]",
+                    params: { id: plan.plan_id },
+                  })}
+                  style={styles.pastJourneyCard}
+                >
+                  <View style={styles.pastJourneyImage}>
+                    <Text style={styles.pastJourneyImageText}>
+                      {plan.destination.slice(0, 2).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.pastJourneyCopy}>
+                    <Text numberOfLines={1} style={styles.pastJourneyTitle}>
+                      {plan.destination}
+                    </Text>
+                    <Text style={styles.pastJourneyDate}>
+                      {formatJourneyDate(plan.created_at)}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))
+            ) : (
+              <View style={styles.emptyPastJourneyCard}>
+                <Text style={styles.pastJourneyTitle}>No journeys yet</Text>
+                <Text style={styles.pastJourneyDate}>Your saved trips will appear here.</Text>
+              </View>
+            )}
+          </ScrollView>
+        </ScrollView>
 
         <AppTabBar active="explore" />
       </View>
@@ -229,10 +319,13 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   content: {
-    flex: 1,
     gap: spacing.lg,
+    paddingBottom: APP_TAB_BAR_OVERLAY_HEIGHT + spacing.xl,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.xl,
+  },
+  pageScroll: {
+    flex: 1,
   },
   header: {
     alignItems: "flex-start",
@@ -321,6 +414,7 @@ const styles = StyleSheet.create({
     color: colors.surface,
   },
   sectionHeader: {
+    alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
   },
@@ -331,6 +425,15 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.muted,
     marginTop: spacing.xs,
+  },
+  viewAllButton: {
+    paddingLeft: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  viewAllText: {
+    ...typography.caption,
+    color: colors.primaryPressed,
+    fontWeight: "800",
   },
   stateCard: {
     alignItems: "center",
@@ -356,7 +459,6 @@ const styles = StyleSheet.create({
   },
   destinationScrollContent: {
     gap: spacing.lg,
-    paddingBottom: APP_TAB_BAR_OVERLAY_HEIGHT,
     paddingRight: spacing.xl,
   },
   destinationList: {
@@ -366,5 +468,63 @@ const styles = StyleSheet.create({
   destinationCardFrame: {
     height: 418,
     width: 302,
+  },
+  pastJourneyScroll: {
+    flexGrow: 0,
+    marginRight: -spacing.xl,
+  },
+  pastJourneyScrollContent: {
+    gap: spacing.md,
+    paddingRight: spacing.xl,
+  },
+  pastJourneyCard: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderColor: colors.clay,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    gap: spacing.md,
+    height: 104,
+    padding: spacing.sm,
+    width: 246,
+  },
+  pastJourneyImage: {
+    alignItems: "center",
+    backgroundColor: colors.moss,
+    borderRadius: radius.md,
+    height: 84,
+    justifyContent: "center",
+    overflow: "hidden",
+    width: 84,
+  },
+  pastJourneyImageText: {
+    color: colors.background,
+    fontSize: 26,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  pastJourneyCopy: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  pastJourneyTitle: {
+    ...typography.subheading,
+  },
+  pastJourneyDate: {
+    ...typography.caption,
+    color: colors.muted,
+    fontWeight: "400",
+  },
+  emptyPastJourneyCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.clay,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: spacing.xs,
+    justifyContent: "center",
+    minHeight: 104,
+    padding: spacing.lg,
+    width: 246,
   },
 });
