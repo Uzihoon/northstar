@@ -11,12 +11,17 @@ type DestinationImageInput =
   | undefined;
 
 const kyotoImage = require("../../assets/destinations/kyoto.png") as ImageSourcePropType;
+const seoulImage = require("../../assets/destinations/seoul.png") as ImageSourcePropType;
 
 export function getDestinationImageSource(input: DestinationImageInput): ImageSourcePropType | null {
   const label = getDestinationLabel(input);
 
   if (label.includes("kyoto")) {
     return kyotoImage;
+  }
+
+  if (label.includes("seoul")) {
+    return seoulImage;
   }
 
   return null;
