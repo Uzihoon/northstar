@@ -1,5 +1,4 @@
 import { Redirect, router, useLocalSearchParams } from "expo-router";
-import { Sparkles } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -43,45 +42,28 @@ export default function PlanningRunScreen() {
     return LOADING_LINES[index] ?? LOADING_LINES[0];
   }, []);
 
+  const drift = useRef(new Animated.Value(0)).current;
   const bounce = useRef(new Animated.Value(0)).current;
-  const mix = useRef(new Animated.Value(0)).current;
-  const sparkle = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    const driftAnimation = Animated.loop(
+      Animated.timing(drift, {
+        duration: 3600,
+        easing: Easing.inOut(Easing.sin),
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+    );
     const bounceAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(bounce, {
-          duration: 520,
+          duration: 720,
           easing: Easing.out(Easing.cubic),
           toValue: 1,
           useNativeDriver: true,
         }),
         Animated.timing(bounce, {
-          duration: 420,
-          easing: Easing.in(Easing.quad),
-          toValue: 0,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    const mixAnimation = Animated.loop(
-      Animated.timing(mix, {
-        duration: 2100,
-        easing: Easing.linear,
-        toValue: 1,
-        useNativeDriver: true,
-      }),
-    );
-    const sparkleAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(sparkle, {
-          duration: 900,
-          easing: Easing.out(Easing.quad),
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-        Animated.timing(sparkle, {
-          duration: 900,
+          duration: 680,
           easing: Easing.in(Easing.quad),
           toValue: 0,
           useNativeDriver: true,
@@ -89,16 +71,14 @@ export default function PlanningRunScreen() {
       ]),
     );
 
+    driftAnimation.start();
     bounceAnimation.start();
-    mixAnimation.start();
-    sparkleAnimation.start();
 
     return () => {
+      driftAnimation.stop();
       bounceAnimation.stop();
-      mixAnimation.stop();
-      sparkleAnimation.stop();
     };
-  }, [bounce, mix, sparkle]);
+  }, [bounce, drift]);
 
   useEffect(() => {
     if (!runId) {
@@ -157,49 +137,57 @@ export default function PlanningRunScreen() {
   }
 
   const statusLabel = getStatusLabel(run?.status);
-  const orbTranslateY = bounce.interpolate({
-    inputRange: [0, 0.55, 1],
-    outputRange: [22, -34, 22],
+  const orangeTranslateX = drift.interpolate({
+    inputRange: [0, 0.28, 0.58, 0.82, 1],
+    outputRange: [-64, -22, 34, 70, -64],
   });
-  const orbScaleX = bounce.interpolate({
-    inputRange: [0, 0.18, 0.55, 1],
-    outputRange: [1.13, 0.96, 1, 1.13],
+  const orangeTranslateY = bounce.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [18, -34, 18],
   });
-  const orbScaleY = bounce.interpolate({
-    inputRange: [0, 0.18, 0.55, 1],
-    outputRange: [0.88, 1.08, 1, 0.88],
+  const orangeRotate = drift.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ["-12deg", "18deg", "-12deg"],
+  });
+  const sageTranslateX = drift.interpolate({
+    inputRange: [0, 0.24, 0.54, 0.78, 1],
+    outputRange: [56, 12, -54, -18, 56],
+  });
+  const sageTranslateY = bounce.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [-16, 32, -16],
+  });
+  const sageRotate = drift.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ["10deg", "-20deg", "10deg"],
+  });
+  const creamTranslateX = drift.interpolate({
+    inputRange: [0, 0.3, 0.62, 0.84, 1],
+    outputRange: [-18, 58, 12, -58, -18],
+  });
+  const creamTranslateY = bounce.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [48, 4, 48],
+  });
+  const creamRotate = drift.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ["18deg", "-14deg", "18deg"],
+  });
+  const shadowTranslateX = drift.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [-22, 22, -22],
   });
   const shadowScale = bounce.interpolate({
-    inputRange: [0, 0.55, 1],
-    outputRange: [1.18, 0.72, 1.18],
+    inputRange: [0, 0.5, 1],
+    outputRange: [1.08, 0.78, 1.08],
   });
   const shadowOpacity = bounce.interpolate({
-    inputRange: [0, 0.55, 1],
-    outputRange: [0.24, 0.08, 0.24],
+    inputRange: [0, 0.5, 1],
+    outputRange: [0.22, 0.09, 0.22],
   });
   const glowScale = bounce.interpolate({
-    inputRange: [0, 0.55, 1],
-    outputRange: [0.98, 1.18, 0.98],
-  });
-  const mixRotate = mix.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  });
-  const counterMixRotate = mix.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["360deg", "0deg"],
-  });
-  const spoonRotate = bounce.interpolate({
     inputRange: [0, 0.5, 1],
-    outputRange: ["-18deg", "18deg", "-18deg"],
-  });
-  const sparkleScale = sparkle.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.82, 1.18],
-  });
-  const sparkleOpacity = sparkle.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.36, 1],
+    outputRange: [0.96, 1.06, 0.96],
   });
 
   return (
@@ -223,72 +211,52 @@ export default function PlanningRunScreen() {
                 styles.shadow,
                 {
                   opacity: shadowOpacity,
-                  transform: [{ scaleX: shadowScale }],
-                },
-              ]}
-            />
-            <Animated.View style={[styles.mixingTrail, { transform: [{ rotate: mixRotate }] }]}>
-              <Animated.View
-                style={[
-                  styles.ingredientDot,
-                  styles.orangeDot,
-                  { transform: [{ rotate: counterMixRotate }] },
-                ]}
-              />
-              <Animated.View
-                style={[
-                  styles.ingredientDot,
-                  styles.sageDot,
-                  { transform: [{ rotate: counterMixRotate }] },
-                ]}
-              />
-              <Animated.View
-                style={[
-                  styles.ingredientDot,
-                  styles.creamDot,
-                  { transform: [{ rotate: counterMixRotate }] },
-                ]}
-              />
-            </Animated.View>
-            <Animated.View
-              style={[
-                styles.sparkleBubble,
-                {
-                  opacity: sparkleOpacity,
-                  transform: [{ scale: sparkleScale }],
-                },
-              ]}
-            >
-              <Sparkles color={colors.surface} size={24} strokeWidth={2.4} />
-            </Animated.View>
-            <Animated.View
-              style={[
-                styles.spoon,
-                {
                   transform: [
-                    { rotate: spoonRotate },
-                    { translateY: -8 },
+                    { translateX: shadowTranslateX },
+                    { scaleX: shadowScale },
                   ],
                 },
               ]}
             />
             <Animated.View
               style={[
-                styles.noriOrb,
+                styles.shape,
+                styles.orangeCircle,
                 {
                   transform: [
-                    { translateY: orbTranslateY },
-                    { scaleX: orbScaleX },
-                    { scaleY: orbScaleY },
+                    { translateX: orangeTranslateX },
+                    { translateY: orangeTranslateY },
+                    { rotate: orangeRotate },
                   ],
                 },
               ]}
-            >
-              <View style={[styles.noriBlob, styles.noriOrange]} />
-              <View style={[styles.noriBlob, styles.noriSage]} />
-              <View style={[styles.noriBlob, styles.noriCream]} />
-              <Text style={styles.noriText}>N</Text>
-            </Animated.View>
+            />
+            <Animated.View
+              style={[
+                styles.shape,
+                styles.sageRectangle,
+                {
+                  transform: [
+                    { translateX: sageTranslateX },
+                    { translateY: sageTranslateY },
+                    { rotate: sageRotate },
+                  ],
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.shape,
+                styles.creamPill,
+                {
+                  transform: [
+                    { translateX: creamTranslateX },
+                    { translateY: creamTranslateY },
+                    { rotate: creamRotate },
+                  ],
+                },
+              ]}
+            />
           </View>
 
           <Text style={styles.statusLabel}>{statusLabel}</Text>
@@ -373,123 +341,51 @@ const styles = StyleSheet.create({
   },
   animationWrap: {
     alignItems: "center",
-    height: 240,
+    height: 220,
     justifyContent: "center",
     marginBottom: spacing.md,
     width: 240,
   },
   glowRing: {
-    backgroundColor: "rgba(255, 225, 199, 0.72)",
-    borderRadius: 105,
-    height: 210,
+    backgroundColor: "rgba(255, 249, 240, 0.78)",
+    borderColor: "rgba(216, 195, 165, 0.42)",
+    borderRadius: 98,
+    borderWidth: StyleSheet.hairlineWidth,
+    height: 196,
     position: "absolute",
-    width: 210,
+    width: 196,
   },
   shadow: {
-    backgroundColor: "rgba(39, 34, 29, 0.3)",
+    backgroundColor: "rgba(39, 34, 29, 0.22)",
     borderRadius: 45,
-    bottom: 30,
-    height: 22,
+    bottom: 24,
+    height: 18,
     position: "absolute",
-    width: 108,
-  },
-  mixingTrail: {
-    alignItems: "center",
-    borderColor: "rgba(111, 143, 114, 0.24)",
-    borderRadius: 92,
-    borderWidth: 1,
-    height: 184,
-    justifyContent: "flex-start",
-    position: "absolute",
-    width: 184,
-  },
-  ingredientDot: {
-    borderColor: "rgba(255, 255, 255, 0.82)",
-    borderRadius: 16,
-    borderWidth: 2,
-    height: 30,
-    position: "absolute",
-    width: 30,
-  },
-  orangeDot: {
-    backgroundColor: colors.primary,
-    top: -15,
-  },
-  sageDot: {
-    backgroundColor: colors.sage,
-    right: 2,
-    top: 128,
-  },
-  creamDot: {
-    backgroundColor: "#FFE8AF",
-    left: 0,
-    top: 118,
-  },
-  sparkleBubble: {
-    alignItems: "center",
-    backgroundColor: colors.moss,
-    borderRadius: 27,
-    height: 54,
-    justifyContent: "center",
-    position: "absolute",
-    right: 18,
-    top: 36,
-    width: 54,
-    zIndex: 3,
-  },
-  spoon: {
-    backgroundColor: "rgba(255, 249, 240, 0.96)",
-    borderColor: "rgba(39, 34, 29, 0.12)",
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    height: 112,
-    position: "absolute",
-    right: 44,
-    top: 24,
-    width: 16,
-    zIndex: 1,
-  },
-  noriOrb: {
-    alignItems: "center",
-    backgroundColor: colors.ink,
-    borderRadius: 72,
-    height: 144,
-    justifyContent: "center",
-    overflow: "hidden",
-    width: 144,
-    zIndex: 2,
-    ...shadows.card,
-  },
-  noriBlob: {
-    borderRadius: 80,
-    position: "absolute",
-  },
-  noriOrange: {
-    backgroundColor: "#F58A46",
-    height: 118,
-    left: -28,
-    top: 24,
-    width: 118,
-  },
-  noriSage: {
-    backgroundColor: "#7BAE77",
-    height: 128,
-    right: -32,
-    top: -22,
     width: 128,
   },
-  noriCream: {
-    backgroundColor: "#FFE8AF",
-    bottom: -24,
-    height: 92,
-    right: 20,
-    width: 92,
+  shape: {
+    borderColor: "rgba(255, 255, 255, 0.72)",
+    borderWidth: 2,
+    position: "absolute",
+    ...shadows.card,
   },
-  noriText: {
-    color: colors.surface,
-    fontSize: 52,
-    fontWeight: "900",
-    zIndex: 2,
+  orangeCircle: {
+    backgroundColor: colors.primary,
+    borderRadius: 37,
+    height: 74,
+    width: 74,
+  },
+  sageRectangle: {
+    backgroundColor: colors.sage,
+    borderRadius: 23,
+    height: 68,
+    width: 96,
+  },
+  creamPill: {
+    backgroundColor: "#FFE8AF",
+    borderRadius: radius.pill,
+    height: 42,
+    width: 116,
   },
   statusLabel: {
     ...typography.caption,
