@@ -487,13 +487,12 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     gap: spacing.sm,
     height: 196,
-    padding: spacing.sm,
-    width: 156,
+    overflow: "hidden",
+    width: 180,
   },
   pastJourneyImage: {
     alignItems: "center",
     backgroundColor: colors.moss,
-    borderRadius: radius.md,
     height: 112,
     justifyContent: "center",
     overflow: "hidden",
@@ -507,6 +506,8 @@ const styles = StyleSheet.create({
   },
   pastJourneyCopy: {
     gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
   },
   pastJourneyTitle: {
     ...typography.caption,
