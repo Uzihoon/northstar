@@ -2,7 +2,6 @@ import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { Sparkles } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Animated,
   Easing,
   Pressable,
@@ -12,7 +11,7 @@ import {
 } from "react-native";
 
 import { getPlanRun } from "../../src/api/client";
-import type { ItineraryPlanRunResponse, PlanRunEvent } from "../../src/api/types";
+import type { ItineraryPlanRunResponse } from "../../src/api/types";
 import { useAuth } from "../../src/auth/AuthContext";
 import { PrimaryButton } from "../../src/components/PrimaryButton";
 import { Screen } from "../../src/components/Screen";
@@ -44,30 +43,30 @@ export default function PlanningRunScreen() {
     return LOADING_LINES[index] ?? LOADING_LINES[0];
   }, []);
 
-  const pulse = useRef(new Animated.Value(0)).current;
-  const orbit = useRef(new Animated.Value(0)).current;
+  const bounce = useRef(new Animated.Value(0)).current;
+  const mix = useRef(new Animated.Value(0)).current;
   const sparkle = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const pulseAnimation = Animated.loop(
+    const bounceAnimation = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, {
-          duration: 1450,
-          easing: Easing.inOut(Easing.sin),
+        Animated.timing(bounce, {
+          duration: 520,
+          easing: Easing.out(Easing.cubic),
           toValue: 1,
           useNativeDriver: true,
         }),
-        Animated.timing(pulse, {
-          duration: 1450,
-          easing: Easing.inOut(Easing.sin),
+        Animated.timing(bounce, {
+          duration: 420,
+          easing: Easing.in(Easing.quad),
           toValue: 0,
           useNativeDriver: true,
         }),
       ]),
     );
-    const orbitAnimation = Animated.loop(
-      Animated.timing(orbit, {
-        duration: 5200,
+    const mixAnimation = Animated.loop(
+      Animated.timing(mix, {
+        duration: 2100,
         easing: Easing.linear,
         toValue: 1,
         useNativeDriver: true,
@@ -90,16 +89,16 @@ export default function PlanningRunScreen() {
       ]),
     );
 
-    pulseAnimation.start();
-    orbitAnimation.start();
+    bounceAnimation.start();
+    mixAnimation.start();
     sparkleAnimation.start();
 
     return () => {
-      pulseAnimation.stop();
-      orbitAnimation.stop();
+      bounceAnimation.stop();
+      mixAnimation.stop();
       sparkleAnimation.stop();
     };
-  }, [orbit, pulse, sparkle]);
+  }, [bounce, mix, sparkle]);
 
   useEffect(() => {
     if (!runId) {
@@ -157,19 +156,42 @@ export default function PlanningRunScreen() {
     return <Redirect href="/onboarding" />;
   }
 
-  const progressEvents = run?.progress_events ?? [];
   const statusLabel = getStatusLabel(run?.status);
-  const pulseScale = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.96, 1.08],
+  const orbTranslateY = bounce.interpolate({
+    inputRange: [0, 0.55, 1],
+    outputRange: [22, -34, 22],
   });
-  const pulseOpacity = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.58, 0.9],
+  const orbScaleX = bounce.interpolate({
+    inputRange: [0, 0.18, 0.55, 1],
+    outputRange: [1.13, 0.96, 1, 1.13],
   });
-  const orbitRotate = orbit.interpolate({
+  const orbScaleY = bounce.interpolate({
+    inputRange: [0, 0.18, 0.55, 1],
+    outputRange: [0.88, 1.08, 1, 0.88],
+  });
+  const shadowScale = bounce.interpolate({
+    inputRange: [0, 0.55, 1],
+    outputRange: [1.18, 0.72, 1.18],
+  });
+  const shadowOpacity = bounce.interpolate({
+    inputRange: [0, 0.55, 1],
+    outputRange: [0.24, 0.08, 0.24],
+  });
+  const glowScale = bounce.interpolate({
+    inputRange: [0, 0.55, 1],
+    outputRange: [0.98, 1.18, 0.98],
+  });
+  const mixRotate = mix.interpolate({
     inputRange: [0, 1],
     outputRange: ["0deg", "360deg"],
+  });
+  const counterMixRotate = mix.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["360deg", "0deg"],
+  });
+  const spoonRotate = bounce.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ["-18deg", "18deg", "-18deg"],
   });
   const sparkleScale = sparkle.interpolate({
     inputRange: [0, 1],
@@ -192,14 +214,41 @@ export default function PlanningRunScreen() {
               style={[
                 styles.glowRing,
                 {
-                  opacity: pulseOpacity,
-                  transform: [{ scale: pulseScale }],
+                  transform: [{ scale: glowScale }],
                 },
               ]}
             />
-            <Animated.View style={[styles.orbitRing, { transform: [{ rotate: orbitRotate }] }]}>
-              <View style={styles.orbitDot} />
-              <View style={[styles.orbitDot, styles.orbitDotTwo]} />
+            <Animated.View
+              style={[
+                styles.shadow,
+                {
+                  opacity: shadowOpacity,
+                  transform: [{ scaleX: shadowScale }],
+                },
+              ]}
+            />
+            <Animated.View style={[styles.mixingTrail, { transform: [{ rotate: mixRotate }] }]}>
+              <Animated.View
+                style={[
+                  styles.ingredientDot,
+                  styles.orangeDot,
+                  { transform: [{ rotate: counterMixRotate }] },
+                ]}
+              />
+              <Animated.View
+                style={[
+                  styles.ingredientDot,
+                  styles.sageDot,
+                  { transform: [{ rotate: counterMixRotate }] },
+                ]}
+              />
+              <Animated.View
+                style={[
+                  styles.ingredientDot,
+                  styles.creamDot,
+                  { transform: [{ rotate: counterMixRotate }] },
+                ]}
+              />
             </Animated.View>
             <Animated.View
               style={[
@@ -212,12 +261,34 @@ export default function PlanningRunScreen() {
             >
               <Sparkles color={colors.surface} size={24} strokeWidth={2.4} />
             </Animated.View>
-            <View style={styles.noriOrb}>
+            <Animated.View
+              style={[
+                styles.spoon,
+                {
+                  transform: [
+                    { rotate: spoonRotate },
+                    { translateY: -8 },
+                  ],
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.noriOrb,
+                {
+                  transform: [
+                    { translateY: orbTranslateY },
+                    { scaleX: orbScaleX },
+                    { scaleY: orbScaleY },
+                  ],
+                },
+              ]}
+            >
               <View style={[styles.noriBlob, styles.noriOrange]} />
               <View style={[styles.noriBlob, styles.noriSage]} />
               <View style={[styles.noriBlob, styles.noriCream]} />
               <Text style={styles.noriText}>N</Text>
-            </View>
+            </Animated.View>
           </View>
 
           <Text style={styles.statusLabel}>{statusLabel}</Text>
@@ -231,12 +302,8 @@ export default function PlanningRunScreen() {
             <View style={styles.errorCard}>
               <Text style={styles.errorText}>{errorMessage}</Text>
             </View>
-          ) : (
-            <ActivityIndicator color={colors.primary} />
-          )}
+          ) : null}
         </View>
-
-        <ProgressCard events={progressEvents} />
 
         <View style={styles.actions}>
           <PrimaryButton label="Explore while Nori plans" onPress={() => router.replace("/")} />
@@ -250,24 +317,6 @@ export default function PlanningRunScreen() {
         </View>
       </View>
     </Screen>
-  );
-}
-
-function ProgressCard({ events }: { events: PlanRunEvent[] }) {
-  const visibleEvents = events.length > 0
-    ? events.slice(-3)
-    : [{ status: "queued", message: "Planning run queued." }];
-
-  return (
-    <View style={styles.progressCard}>
-      <Text style={styles.progressTitle}>Tiny travel machine status</Text>
-      {visibleEvents.map((event, index) => (
-        <View key={`${event.status}-${index}`} style={styles.progressRow}>
-          <View style={styles.progressDot} />
-          <Text style={styles.progressText}>{event.message}</Text>
-        </View>
-      ))}
-    </View>
   );
 }
 
@@ -324,39 +373,57 @@ const styles = StyleSheet.create({
   },
   animationWrap: {
     alignItems: "center",
-    height: 210,
+    height: 240,
     justifyContent: "center",
     marginBottom: spacing.md,
-    width: 210,
+    width: 240,
   },
   glowRing: {
-    backgroundColor: "#FFE1C7",
-    borderRadius: 95,
-    height: 190,
+    backgroundColor: "rgba(255, 225, 199, 0.72)",
+    borderRadius: 105,
+    height: 210,
     position: "absolute",
-    width: 190,
+    width: 210,
   },
-  orbitRing: {
+  shadow: {
+    backgroundColor: "rgba(39, 34, 29, 0.3)",
+    borderRadius: 45,
+    bottom: 30,
+    height: 22,
+    position: "absolute",
+    width: 108,
+  },
+  mixingTrail: {
     alignItems: "center",
-    borderColor: "rgba(111, 143, 114, 0.34)",
-    borderRadius: 96,
+    borderColor: "rgba(111, 143, 114, 0.24)",
+    borderRadius: 92,
     borderWidth: 1,
-    height: 192,
+    height: 184,
     justifyContent: "flex-start",
     position: "absolute",
-    width: 192,
+    width: 184,
   },
-  orbitDot: {
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    height: 16,
-    top: -8,
-    width: 16,
-  },
-  orbitDotTwo: {
-    backgroundColor: colors.sage,
+  ingredientDot: {
+    borderColor: "rgba(255, 255, 255, 0.82)",
+    borderRadius: 16,
+    borderWidth: 2,
+    height: 30,
     position: "absolute",
-    top: 184,
+    width: 30,
+  },
+  orangeDot: {
+    backgroundColor: colors.primary,
+    top: -15,
+  },
+  sageDot: {
+    backgroundColor: colors.sage,
+    right: 2,
+    top: 128,
+  },
+  creamDot: {
+    backgroundColor: "#FFE8AF",
+    left: 0,
+    top: 118,
   },
   sparkleBubble: {
     alignItems: "center",
@@ -365,10 +432,22 @@ const styles = StyleSheet.create({
     height: 54,
     justifyContent: "center",
     position: "absolute",
-    right: 16,
-    top: 30,
+    right: 18,
+    top: 36,
     width: 54,
     zIndex: 3,
+  },
+  spoon: {
+    backgroundColor: "rgba(255, 249, 240, 0.96)",
+    borderColor: "rgba(39, 34, 29, 0.12)",
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    height: 112,
+    position: "absolute",
+    right: 44,
+    top: 24,
+    width: 16,
+    zIndex: 1,
   },
   noriOrb: {
     alignItems: "center",
@@ -378,6 +457,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
     width: 144,
+    zIndex: 2,
     ...shadows.card,
   },
   noriBlob: {
@@ -449,36 +529,6 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.error,
     textAlign: "center",
-  },
-  progressCard: {
-    backgroundColor: "rgba(255, 249, 240, 0.82)",
-    borderColor: "rgba(39, 34, 29, 0.1)",
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: spacing.md,
-    padding: spacing.lg,
-  },
-  progressTitle: {
-    ...typography.caption,
-    color: colors.primaryPressed,
-    fontWeight: "900",
-    textTransform: "uppercase",
-  },
-  progressRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  progressDot: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.pill,
-    height: 9,
-    width: 9,
-  },
-  progressText: {
-    ...typography.caption,
-    color: colors.muted,
-    flex: 1,
   },
   actions: {
     gap: spacing.sm,
