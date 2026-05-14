@@ -14,7 +14,7 @@ import {
 
 import { listDestinations, listSavedPlans } from "../src/api/client";
 import type { Destination, SavedPlanSummary } from "../src/api/types";
-import { getDestinationImageSource } from "../src/assets/destinationImages";
+import { getDestinationCityName, getDestinationImageSource } from "../src/assets/destinationImages";
 import { useAuth } from "../src/auth/AuthContext";
 import { AppTabBar, APP_TAB_BAR_OVERLAY_HEIGHT } from "../src/components/AppTabBar";
 import { DestinationCard } from "../src/components/DestinationCard";
@@ -301,14 +301,14 @@ export default function DashboardScreen() {
                       >
                         <View style={styles.pastJourneyImageOverlay}>
                           <Text style={styles.pastJourneyImageText}>
-                            {plan.destination.slice(0, 2).toUpperCase()}
+                            {getDestinationCityName(plan.destination)}
                           </Text>
                         </View>
                       </ImageBackground>
                     ) : (
                       <View style={styles.pastJourneyImage}>
                         <Text style={styles.pastJourneyImageText}>
-                          {plan.destination.slice(0, 2).toUpperCase()}
+                          {getDestinationCityName(plan.destination)}
                         </Text>
                       </View>
                     )}

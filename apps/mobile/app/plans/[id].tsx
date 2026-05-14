@@ -167,9 +167,11 @@ export default function PlanSummaryScreen() {
               <View style={styles.heroBlobSage} />
             </>
           )}
-          <View style={styles.heroOrb}>
-            <Text style={styles.heroOrbText}>{getDestinationInitials(plan.destination)}</Text>
-          </View>
+          {!heroImageSource ? (
+            <View style={styles.heroOrb}>
+              <Text style={styles.heroOrbText}>{getDestinationInitials(plan.destination)}</Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.heroContent}>

@@ -27,6 +27,18 @@ export function getDestinationImageSource(input: DestinationImageInput): ImageSo
   return null;
 }
 
+export function getDestinationCityName(input: DestinationImageInput): string {
+  if (!input) {
+    return "Trip";
+  }
+
+  if (typeof input === "string") {
+    return input.split(",")[0]?.trim() || input;
+  }
+
+  return input.city || input.destination?.split(",")[0]?.trim() || "Trip";
+}
+
 function getDestinationLabel(input: DestinationImageInput) {
   if (!input) {
     return "";

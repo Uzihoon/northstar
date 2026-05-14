@@ -226,9 +226,11 @@ function LatestJourneyArtwork({ plan }: { plan: SavedPlanSummary }) {
           <View style={styles.latestBlobSage} />
         </>
       )}
-      <View style={styles.latestOrb}>
-        <Text style={styles.latestOrbText}>{getDestinationInitials(plan)}</Text>
-      </View>
+      {!imageSource ? (
+        <View style={styles.latestOrb}>
+          <Text style={styles.latestOrbText}>{getDestinationInitials(plan)}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -272,8 +274,9 @@ function JourneyArtwork({ plan }: { plan: SavedPlanSummary }) {
         >
           <View style={styles.planImageOverlay} />
         </ImageBackground>
-      ) : null}
-      <Text style={styles.planArtworkText}>{getDestinationInitials(plan)}</Text>
+      ) : (
+        <Text style={styles.planArtworkText}>{getDestinationInitials(plan)}</Text>
+      )}
     </View>
   );
 }

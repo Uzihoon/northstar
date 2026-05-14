@@ -1,7 +1,7 @@
 import { ImageBackground, Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { Destination } from "../api/types";
-import { getDestinationImageSource } from "../assets/destinationImages";
+import { getDestinationCityName, getDestinationImageSource } from "../assets/destinationImages";
 import { colors, radius, shadows, spacing, typography } from "../theme/tokens";
 import { Pill } from "./Pill";
 
@@ -53,8 +53,7 @@ function HeroOverlay({ destination }: HeroOverlayProps) {
   return (
     <View style={styles.heroOverlay}>
       <View>
-        <Text style={styles.imageText}>{destination.city.slice(0, 2).toUpperCase()}</Text>
-        <Text style={styles.imageCaption}>{destination.vibes[0] ?? "personal trip"}</Text>
+        <Text numberOfLines={1} style={styles.imageText}>{getDestinationCityName(destination)}</Text>
       </View>
     </View>
   );
@@ -119,14 +118,9 @@ const styles = StyleSheet.create({
   },
   imageText: {
     color: colors.background,
-    fontSize: 58,
+    fontSize: 34,
     fontWeight: "900",
-    letterSpacing: 2,
-  },
-  imageCaption: {
-    ...typography.caption,
-    color: colors.background,
-    textTransform: "uppercase",
+    letterSpacing: -0.4,
   },
   body: {
     flex: 1,

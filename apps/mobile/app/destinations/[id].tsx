@@ -25,7 +25,7 @@ import {
 
 import { getDestination, getPlanRun, startPlanRun } from "../../src/api/client";
 import type { Destination, ItineraryPlanRunResponse } from "../../src/api/types";
-import { getDestinationImageSource } from "../../src/assets/destinationImages";
+import { getDestinationCityName, getDestinationImageSource } from "../../src/assets/destinationImages";
 import { Pill } from "../../src/components/Pill";
 import { PrimaryButton } from "../../src/components/PrimaryButton";
 import { Screen } from "../../src/components/Screen";
@@ -313,7 +313,7 @@ export default function DestinationDetailScreen() {
                 <View style={styles.destinationBlobSage} />
               </>
             )}
-            <Text style={styles.destinationCode}>{destination.city.slice(0, 2).toUpperCase()}</Text>
+            <Text numberOfLines={1} style={styles.destinationCode}>{getDestinationCityName(destination)}</Text>
           </View>
 
           <View style={styles.destinationCopy}>
@@ -695,9 +695,9 @@ const styles = StyleSheet.create({
   },
   destinationCode: {
     color: colors.surface,
-    fontSize: 38,
+    fontSize: 32,
     fontWeight: "900",
-    letterSpacing: 2,
+    letterSpacing: -0.4,
     zIndex: 1,
   },
   destinationCopy: {
