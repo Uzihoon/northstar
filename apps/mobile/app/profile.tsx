@@ -161,6 +161,14 @@ export default function ProfileScreen() {
 
           {!isLoading ? (
             <>
+              <View style={styles.noteCard}>
+                <SectionTitle icon={Compass} title="How Nori uses this" />
+                <Text style={styles.cardBody}>
+                  Your profile sets the default vibe. Trip-specific requests still win when you ask
+                  for a different pace, budget, food style, or mood.
+                </Text>
+              </View>
+
               <View style={styles.statGrid}>
                 <PreferenceStat
                   icon={Gauge}
@@ -173,14 +181,6 @@ export default function ProfileScreen() {
                   tone="orange"
                   value={formatPreferenceValue(safeProfile.budget_level)}
                 />
-              </View>
-
-              <View style={styles.noteCard}>
-                <SectionTitle icon={Compass} title="How Nori uses this" />
-                <Text style={styles.cardBody}>
-                  Your profile sets the default vibe. Trip-specific requests still win when you ask
-                  for a different pace, budget, food style, or mood.
-                </Text>
               </View>
 
               <PreferenceSection
