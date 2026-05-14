@@ -65,6 +65,15 @@ export type OnboardingTurnResponse = {
   next_focus: string;
 };
 
+export type UserPreferenceProfile = {
+  pace: string | null;
+  budget_level: string | null;
+  interests: string[];
+  food_preferences: string[];
+  dislikes: string[];
+  notes: string[];
+};
+
 export type SavedPlanSummary = {
   plan_id: string;
   trip_request_id: string;

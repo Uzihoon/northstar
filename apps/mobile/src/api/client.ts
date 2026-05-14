@@ -9,6 +9,7 @@ import type {
   OnboardingTurnResponse,
   SavedPlanListResponse,
   SavedPlanSummary,
+  UserPreferenceProfile,
 } from "./types";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -81,6 +82,10 @@ export async function sendOnboardingMessages(
     method: "POST",
     body: JSON.stringify({ messages }),
   });
+}
+
+export async function getPreferenceProfile(): Promise<UserPreferenceProfile> {
+  return request<UserPreferenceProfile>("/profile");
 }
 
 export async function sendNoriChat(prompt: string): Promise<ChatResponse> {

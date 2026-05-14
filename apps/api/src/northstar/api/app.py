@@ -24,6 +24,7 @@ from northstar.memory.plan_store import (
   list_itinerary_plans,
 )
 from northstar.memory.plan_run_store import create_itinerary_plan_run, get_itinerary_plan_run
+from northstar.memory.profile_store import load_profile
 from northstar.api.admin import router as admin_router
 from northstar.rag.retriever import retrieve_travel_context
 
@@ -172,6 +173,14 @@ class OnboardingTurnResponse(BaseModel):
   profile: dict[str, Any]
   is_complete: bool
   next_focus: str
+
+class UserPreferenceProfileResponse(BaseModel):
+  pace: Pace | None = None
+  budget_level: BudgetLevel | None = None
+  interests: list[str] = Field(default_factory=list)
+  food_preferences: list[str] = Field(default_factory=list)
+  dislikes: list[str] = Field(default_factory=list)
+  notes: list[str] = Field(default_factory=list)
 
 class DestinationResponse(Destination):
   pass
@@ -493,6 +502,19 @@ def onboarding_messages(request: OnboardingTurnRequest) -> OnboardingTurnRespons
     is_complete=result.is_complete,
     next_focus=result.next_focus,
   )
+
+@app.get("/profile", response_model=UserPreferenceProfileResponse)
+def get_user_profile(user: str = "local") -> UserPreferenceProfileResponse:
+  try:
+    with get_session() as session:
+      profile = load_profile(session, user_slug=user)
+  except SQLAlchemyError as exc:
+    raise HTTPException(
+      status_code=503,
+      detail="Northstar could not load the preference profile. Check the Postgres tunnel and migrations.",
+    ) from exc
+
+  return UserPreferenceProfileResponse.model_validate(profile.model_dump(mode="json"))
 
 @app.post("/itinerary-plan-runs", response_model=ItineraryPlanRunStartResponse)
 def start_itinerary_plan_run(
