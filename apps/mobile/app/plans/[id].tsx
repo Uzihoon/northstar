@@ -6,7 +6,7 @@ import {
   ChevronRight,
   Clock3,
   Coffee,
-  Locate,
+  Landmark,
   MapPin,
   Navigation,
   Utensils,
@@ -264,7 +264,7 @@ function TimelineItem({ card, isLast }: { card: MobilePlanCard; isLast: boolean 
 
         {card.area ? (
           <View style={styles.locationRow}>
-            <Locate color={colors.sage} size={15} strokeWidth={2.2} />
+            <MapPin color={colors.sage} size={15} strokeWidth={2.2} />
             <Text numberOfLines={2} style={styles.locationText}>{card.area}</Text>
           </View>
         ) : null}
@@ -327,7 +327,7 @@ function getTimelineIcon(card: MobilePlanCard): LucideIcon {
     return BedDouble;
   }
 
-  return MapPin;
+  return Landmark;
 }
 
 function getTimelineTone(card: MobilePlanCard): TimelineTone {
