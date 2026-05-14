@@ -287,7 +287,7 @@ export default function DestinationDetailScreen() {
   }
 
   return (
-    <Screen padded={false} scroll={false}>
+    <Screen edges={["left", "right"]} padded={false} scroll={false}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -624,7 +624,7 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
     paddingBottom: spacing.xxl,
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xs,
+    paddingTop: spacing.xl,
   },
   scroll: {
     flex: 1,
