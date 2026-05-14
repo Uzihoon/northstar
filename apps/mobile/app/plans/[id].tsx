@@ -710,6 +710,8 @@ const styles = StyleSheet.create({
   cardDescription: {
     ...typography.body,
     color: colors.muted,
+    fontSize: 15,
+    lineHeight: 22,
   },
   cardTags: {
     flexDirection: "row",
