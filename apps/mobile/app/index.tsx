@@ -255,7 +255,7 @@ export default function DashboardScreen() {
             </View>
           </ScrollView>
 
-          <View style={styles.sectionHeader}>
+          <View style={[styles.sectionHeader, styles.pastJourneysHeader]}>
             <Text style={styles.sectionTitle}>My Past Journeys</Text>
             <Pressable
               accessibilityRole="button"
@@ -425,6 +425,9 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.muted,
     marginTop: spacing.xs,
+  },
+  pastJourneysHeader: {
+    marginTop: spacing.md,
   },
   viewAllButton: {
     paddingLeft: spacing.md,
