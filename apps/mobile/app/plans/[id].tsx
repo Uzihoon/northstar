@@ -20,6 +20,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 
 import { getPlanSummary } from "../../src/api/client";
@@ -37,6 +38,10 @@ type DayTabProps = {
   onPress: () => void;
 };
 
+const DAY_TAB_INACTIVE_WIDTH = 82;
+const DAY_TAB_ACTIVE_WIDTH = 116;
+const DAY_TAB_GAP = spacing.xs;
+
 function firstParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -44,11 +49,14 @@ function firstParam(value: string | string[] | undefined): string | undefined {
 export default function PlanSummaryScreen() {
   const params = useLocalSearchParams();
   const planId = firstParam(params.id);
+  const { width: windowWidth } = useWindowDimensions();
 
   const [plan, setPlan] = useState<MobilePlanSummary | null>(null);
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [dayTabViewportWidth, setDayTabViewportWidth] = useState(0);
+  const dayTabScrollRef = useRef<ScrollView | null>(null);
   const scrollRef = useRef<ScrollView | null>(null);
 
   useEffect(() => {
@@ -85,6 +93,17 @@ export default function PlanSummaryScreen() {
       isMounted = false;
     };
   }, [planId]);
+
+  useEffect(() => {
+    const viewportWidth = dayTabViewportWidth || Math.max(0, windowWidth - spacing.xl * 2);
+    const activeTabCenter =
+      activeDayIndex * (DAY_TAB_INACTIVE_WIDTH + DAY_TAB_GAP) + DAY_TAB_ACTIVE_WIDTH / 2;
+    const x = Math.max(0, activeTabCenter - viewportWidth / 2);
+
+    requestAnimationFrame(() => {
+      dayTabScrollRef.current?.scrollTo({ animated: true, x });
+    });
+  }, [activeDayIndex, dayTabViewportWidth, windowWidth]);
 
   if (isLoading) {
     return (
@@ -160,6 +179,8 @@ export default function PlanSummaryScreen() {
       <ScrollView
         contentContainerStyle={styles.dayTabs}
         horizontal
+        onLayout={(event) => setDayTabViewportWidth(event.nativeEvent.layout.width)}
+        ref={dayTabScrollRef}
         showsHorizontalScrollIndicator={false}
         style={styles.dayTabScroll}
       >
@@ -211,7 +232,7 @@ function DayTab({ day, isActive, onPress }: DayTabProps) {
 
   const width = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [82, 116],
+    outputRange: [DAY_TAB_INACTIVE_WIDTH, DAY_TAB_ACTIVE_WIDTH],
   });
 
   return (
