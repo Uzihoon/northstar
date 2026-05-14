@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Clock3,
   Coffee,
+  Locate,
   MapPin,
   Navigation,
   Utensils,
@@ -255,17 +256,15 @@ function TimelineItem({ card, isLast }: { card: MobilePlanCard; isLast: boolean 
         <View style={styles.timelineCardHeader}>
           <View style={styles.cardHeaderBadges}>
             <View style={styles.timePill}>
+              <Clock3 color={colors.primaryPressed} size={14} strokeWidth={2.3} />
               <Text style={styles.timePillText}>{card.time}</Text>
-            </View>
-            <View style={[styles.kindPill, accentStyle.pill]}>
-              <Text style={[styles.kindPillText, accentStyle.pillText]}>{formatKind(card.kind)}</Text>
             </View>
           </View>
         </View>
 
         {card.area ? (
           <View style={styles.locationRow}>
-            <MapPin color={colors.sage} size={15} strokeWidth={2.2} />
+            <Locate color={colors.sage} size={15} strokeWidth={2.2} />
             <Text numberOfLines={2} style={styles.locationText}>{card.area}</Text>
           </View>
         ) : null}
@@ -347,8 +346,6 @@ function getAccentStyle(tone: TimelineTone) {
     return {
       bubble: styles.orangeBubble,
       iconColor: colors.primaryPressed,
-      pill: styles.orangeKindPill,
-      pillText: styles.orangeKindText,
     };
   }
 
@@ -356,16 +353,12 @@ function getAccentStyle(tone: TimelineTone) {
     return {
       bubble: styles.mossBubble,
       iconColor: colors.moss,
-      pill: styles.mossKindPill,
-      pillText: styles.mossKindText,
     };
   }
 
   return {
     bubble: styles.sageBubble,
     iconColor: colors.sage,
-    pill: styles.sageKindPill,
-    pillText: styles.sageKindText,
   };
 }
 
@@ -440,10 +433,6 @@ function getDestinationInitials(destination: string) {
   }
 
   return destination.slice(0, 2).toUpperCase();
-}
-
-function formatKind(kind: string) {
-  return kind.replace(/_/g, " ");
 }
 
 const styles = StyleSheet.create({
@@ -693,8 +682,11 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   timePill: {
+    alignItems: "center",
     backgroundColor: colors.background,
     borderRadius: radius.pill,
+    flexDirection: "row",
+    gap: spacing.xs,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
@@ -702,16 +694,6 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.primaryPressed,
     fontWeight: "900",
-  },
-  kindPill: {
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  kindPillText: {
-    ...typography.caption,
-    fontWeight: "900",
-    textTransform: "capitalize",
   },
   locationRow: {
     alignItems: "flex-start",
@@ -782,24 +764,6 @@ const styles = StyleSheet.create({
   },
   mossBubble: {
     backgroundColor: "rgba(53, 94, 59, 0.12)",
-  },
-  orangeKindPill: {
-    backgroundColor: "rgba(232, 111, 44, 0.14)",
-  },
-  sageKindPill: {
-    backgroundColor: "rgba(111, 143, 114, 0.18)",
-  },
-  mossKindPill: {
-    backgroundColor: "rgba(53, 94, 59, 0.12)",
-  },
-  orangeKindText: {
-    color: colors.primaryPressed,
-  },
-  sageKindText: {
-    color: colors.moss,
-  },
-  mossKindText: {
-    color: colors.moss,
   },
   stateCard: {
     alignItems: "center",
