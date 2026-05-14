@@ -205,10 +205,10 @@ export default function DashboardScreen() {
           </ScrollView>
 
           <View style={styles.sectionHeader}>
-            <View>
+            <View style={styles.sectionHeaderCopy}>
               <Text style={styles.sectionTitle}>Curated for you</Text>
               <Text style={styles.sectionSubtitle}>
-                Large cards now, real photography later.
+                Places Nori can plan well right now. Use search or chips to narrow the vibe.
               </Text>
             </View>
           </View>
@@ -256,7 +256,12 @@ export default function DashboardScreen() {
           </ScrollView>
 
           <View style={[styles.sectionHeader, styles.pastJourneysHeader]}>
-            <Text style={styles.sectionTitle}>My Past Journeys</Text>
+            <View style={styles.sectionHeaderCopy}>
+              <Text style={styles.sectionTitle}>My Past Journeys</Text>
+              <Text style={styles.sectionSubtitle}>
+                Reopen recent itineraries when you want to tweak, compare, or reuse one.
+              </Text>
+            </View>
             <Pressable
               accessibilityRole="button"
               onPress={() => router.replace("/itineraries")}
@@ -414,9 +419,13 @@ const styles = StyleSheet.create({
     color: colors.surface,
   },
   sectionHeader: {
-    alignItems: "center",
+    alignItems: "flex-start",
     flexDirection: "row",
     justifyContent: "space-between",
+  },
+  sectionHeaderCopy: {
+    flex: 1,
+    paddingRight: spacing.md,
   },
   sectionTitle: {
     ...typography.heading,
