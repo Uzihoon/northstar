@@ -1,5 +1,5 @@
 import { Redirect, router } from "expo-router";
-import { CalendarDays, ChevronRight, MapPin, Sparkles } from "lucide-react-native";
+import { CalendarDays, ChevronRight, MapPin } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -78,18 +78,9 @@ export default function ItinerariesScreen() {
           style={styles.scroll}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>My Journeys</Text>
-              <Text style={styles.subtitle}>Plans Nori helped shape for you.</Text>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.replace("/")}
-              style={styles.exploreButton}
-            >
-              <Sparkles color={colors.surface} size={19} strokeWidth={2.2} />
-            </Pressable>
+          <View>
+            <Text style={styles.title}>My Journeys</Text>
+            <Text style={styles.subtitle}>Plans Nori helped shape for you.</Text>
           </View>
 
           {isLoading ? (
@@ -367,11 +358,6 @@ const styles = StyleSheet.create({
   scroll: {
     flex: 1,
   },
-  header: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
   title: {
     ...typography.heading,
   },
@@ -381,14 +367,6 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     lineHeight: 22,
     marginTop: spacing.xs,
-  },
-  exploreButton: {
-    alignItems: "center",
-    backgroundColor: colors.moss,
-    borderRadius: radius.pill,
-    height: 46,
-    justifyContent: "center",
-    width: 46,
   },
   stateCard: {
     alignItems: "center",
