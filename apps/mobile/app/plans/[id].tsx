@@ -251,7 +251,7 @@ function TimelineItem({ card, isLast }: { card: MobilePlanCard; isLast: boolean 
         {!isLast ? <View style={styles.timelineLine} /> : null}
       </View>
 
-      <View style={[styles.timelineCard, accentStyle.card]}>
+      <View style={styles.timelineCard}>
         <View style={styles.timelineCardHeader}>
           <View style={styles.cardHeaderBadges}>
             <View style={styles.timePill}>
@@ -346,7 +346,6 @@ function getAccentStyle(tone: TimelineTone) {
   if (tone === "orange") {
     return {
       bubble: styles.orangeBubble,
-      card: styles.orangeCard,
       iconColor: colors.primaryPressed,
       pill: styles.orangeKindPill,
       pillText: styles.orangeKindText,
@@ -356,7 +355,6 @@ function getAccentStyle(tone: TimelineTone) {
   if (tone === "moss") {
     return {
       bubble: styles.mossBubble,
-      card: styles.mossCard,
       iconColor: colors.moss,
       pill: styles.mossKindPill,
       pillText: styles.mossKindText,
@@ -365,7 +363,6 @@ function getAccentStyle(tone: TimelineTone) {
 
   return {
     bubble: styles.sageBubble,
-    card: styles.sageCard,
     iconColor: colors.sage,
     pill: styles.sageKindPill,
     pillText: styles.sageKindText,
@@ -678,7 +675,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderColor: colors.clay,
     borderWidth: StyleSheet.hairlineWidth,
-    borderLeftWidth: 4,
     borderRadius: radius.lg,
     flex: 1,
     gap: spacing.sm,
@@ -786,15 +782,6 @@ const styles = StyleSheet.create({
   },
   mossBubble: {
     backgroundColor: "rgba(53, 94, 59, 0.12)",
-  },
-  orangeCard: {
-    borderLeftColor: colors.primary,
-  },
-  sageCard: {
-    borderLeftColor: colors.sage,
-  },
-  mossCard: {
-    borderLeftColor: colors.moss,
   },
   orangeKindPill: {
     backgroundColor: "rgba(232, 111, 44, 0.14)",
