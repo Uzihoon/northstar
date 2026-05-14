@@ -1,5 +1,15 @@
 import { useEffect, useState } from "react";
 import { Redirect, router } from "expo-router";
+import {
+  Ban,
+  Compass,
+  Gauge,
+  NotebookText,
+  Sparkles,
+  Utensils,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react-native";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { getPreferenceProfile } from "../src/api/client";
@@ -24,13 +34,22 @@ type PreferenceSectionProps = {
   title: string;
   description: string;
   emptyLabel: string;
+  icon: LucideIcon;
   values: string[];
   tone?: "sage" | "orange" | "neutral";
 };
 
 type PreferenceStatProps = {
+  icon: LucideIcon;
   label: string;
+  tone?: "sage" | "orange";
   value: string;
+};
+
+type SectionTitleProps = {
+  icon: LucideIcon;
+  title: string;
+  tone?: "sage" | "orange" | "neutral";
 };
 
 export default function ProfileScreen() {
@@ -138,12 +157,21 @@ export default function ProfileScreen() {
           {!isLoading ? (
             <>
               <View style={styles.statGrid}>
-                <PreferenceStat label="Pace" value={formatPreferenceValue(safeProfile.pace)} />
-                <PreferenceStat label="Budget" value={formatPreferenceValue(safeProfile.budget_level)} />
+                <PreferenceStat
+                  icon={Gauge}
+                  label="Pace"
+                  value={formatPreferenceValue(safeProfile.pace)}
+                />
+                <PreferenceStat
+                  icon={Wallet}
+                  label="Budget"
+                  tone="orange"
+                  value={formatPreferenceValue(safeProfile.budget_level)}
+                />
               </View>
 
               <View style={styles.noteCard}>
-                <Text style={styles.cardTitle}>How Nori uses this</Text>
+                <SectionTitle icon={Compass} title="How Nori uses this" />
                 <Text style={styles.cardBody}>
                   Your profile sets the default vibe. Trip-specific requests still win when you ask
                   for a different pace, budget, food style, or mood.
@@ -154,6 +182,7 @@ export default function ProfileScreen() {
                 title="Things you like"
                 description="Activities, places, and travel moods Nori should bias toward."
                 emptyLabel="No favorite travel signals yet."
+                icon={Sparkles}
                 values={safeProfile.interests}
                 tone="sage"
               />
@@ -162,6 +191,7 @@ export default function ProfileScreen() {
                 title="Food preferences"
                 description="Diet and dining notes that should appear in future plans."
                 emptyLabel="No food preferences learned yet."
+                icon={Utensils}
                 values={safeProfile.food_preferences}
                 tone="orange"
               />
@@ -170,6 +200,7 @@ export default function ProfileScreen() {
                 title="Not my vibe"
                 description="Things Nori should avoid when it can."
                 emptyLabel="No dislikes saved yet."
+                icon={Ban}
                 values={safeProfile.dislikes}
               />
 
@@ -177,6 +208,7 @@ export default function ProfileScreen() {
                 title="Memory notes"
                 description="Extra context Nori has learned from your onboarding chat."
                 emptyLabel="No extra notes saved yet."
+                icon={NotebookText}
                 values={safeProfile.notes}
               />
             </>
@@ -199,10 +231,17 @@ export default function ProfileScreen() {
   );
 }
 
-function PreferenceStat({ label, value }: PreferenceStatProps) {
+function PreferenceStat({ icon: Icon, label, tone = "sage", value }: PreferenceStatProps) {
+  const iconColor = tone === "orange" ? colors.primaryPressed : colors.moss;
+
   return (
     <View style={styles.statCard}>
-      <Text style={styles.statLabel}>{label}</Text>
+      <View style={styles.statHeader}>
+        <View style={[styles.sectionIcon, getIconToneStyle(tone)]}>
+          <Icon color={iconColor} size={15} strokeWidth={2.4} />
+        </View>
+        <Text style={styles.statLabel}>{label}</Text>
+      </View>
       <Text style={styles.statValue}>{value}</Text>
     </View>
   );
@@ -212,12 +251,13 @@ function PreferenceSection({
   title,
   description,
   emptyLabel,
+  icon,
   values,
   tone = "neutral",
 }: PreferenceSectionProps) {
   return (
     <View style={styles.preferenceCard}>
-      <Text style={styles.cardTitle}>{title}</Text>
+      <SectionTitle icon={icon} title={title} tone={tone} />
       <Text style={styles.cardBody}>{description}</Text>
       {values.length > 0 ? (
         <View style={styles.pills}>
@@ -230,6 +270,31 @@ function PreferenceSection({
       )}
     </View>
   );
+}
+
+function SectionTitle({ icon: Icon, title, tone = "sage" }: SectionTitleProps) {
+  const iconColor = tone === "orange" ? colors.primaryPressed : colors.moss;
+
+  return (
+    <View style={styles.sectionTitleRow}>
+      <View style={[styles.sectionIcon, getIconToneStyle(tone)]}>
+        <Icon color={iconColor} size={16} strokeWidth={2.4} />
+      </View>
+      <Text style={styles.cardTitle}>{title}</Text>
+    </View>
+  );
+}
+
+function getIconToneStyle(tone: "sage" | "orange" | "neutral") {
+  if (tone === "orange") {
+    return styles.orangeIcon;
+  }
+
+  if (tone === "neutral") {
+    return styles.neutralIcon;
+  }
+
+  return styles.sageIcon;
 }
 
 function countPreferenceSignals(profile: UserPreferenceProfile): number {
@@ -372,6 +437,11 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...shadows.card,
   },
+  statHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
   statLabel: {
     ...typography.caption,
     color: colors.muted,
@@ -421,6 +491,27 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     ...typography.subheading,
+  },
+  sectionTitleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  sectionIcon: {
+    alignItems: "center",
+    borderRadius: radius.pill,
+    height: 32,
+    justifyContent: "center",
+    width: 32,
+  },
+  sageIcon: {
+    backgroundColor: "#E1E9DA",
+  },
+  orangeIcon: {
+    backgroundColor: "#F7D4BD",
+  },
+  neutralIcon: {
+    backgroundColor: colors.surfaceStrong,
   },
   cardBody: {
     ...typography.body,
