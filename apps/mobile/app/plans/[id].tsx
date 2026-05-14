@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  ImageBackground,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -25,6 +26,7 @@ import {
 
 import { getPlanSummary } from "../../src/api/client";
 import type { MobilePlanCard, MobilePlanDay, MobilePlanSummary } from "../../src/api/types";
+import { getDestinationImageSource } from "../../src/assets/destinationImages";
 import { Pill } from "../../src/components/Pill";
 import { PrimaryButton } from "../../src/components/PrimaryButton";
 import { Screen } from "../../src/components/Screen";
@@ -130,6 +132,7 @@ export default function PlanSummaryScreen() {
   }
 
   const activeDay = plan.days[activeDayIndex] ?? plan.days[0];
+  const heroImageSource = getDestinationImageSource(plan.destination);
   const planDateLabel = getPlanDateLabel(plan.days);
   const nextDayIndex = getNextDayIndex(activeDayIndex, plan.days.length);
   const nextDayLabel = activeDayIndex < plan.days.length - 1
@@ -150,8 +153,20 @@ export default function PlanSummaryScreen() {
     <Screen edges={["left", "right"]} scrollRef={scrollRef}>
       <View style={styles.hero}>
         <View style={styles.heroArtwork}>
-          <View style={styles.heroBlobOrange} />
-          <View style={styles.heroBlobSage} />
+          {heroImageSource ? (
+            <ImageBackground
+              imageStyle={styles.heroImage}
+              source={heroImageSource}
+              style={styles.heroImageBackground}
+            >
+              <View style={styles.heroImageOverlay} />
+            </ImageBackground>
+          ) : (
+            <>
+              <View style={styles.heroBlobOrange} />
+              <View style={styles.heroBlobSage} />
+            </>
+          )}
           <View style={styles.heroOrb}>
             <Text style={styles.heroOrbText}>{getDestinationInitials(plan.destination)}</Text>
           </View>
@@ -475,6 +490,17 @@ const styles = StyleSheet.create({
     height: 118,
     overflow: "hidden",
     position: "relative",
+  },
+  heroImageBackground: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  heroImage: {
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+  },
+  heroImageOverlay: {
+    backgroundColor: "rgba(39, 34, 29, 0.2)",
+    flex: 1,
   },
   heroBlobOrange: {
     backgroundColor: "#F09A57",

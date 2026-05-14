@@ -13,6 +13,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  ImageBackground,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,6 +25,7 @@ import {
 
 import { getDestination, getPlanRun, startPlanRun } from "../../src/api/client";
 import type { Destination, ItineraryPlanRunResponse } from "../../src/api/types";
+import { getDestinationImageSource } from "../../src/assets/destinationImages";
 import { Pill } from "../../src/components/Pill";
 import { PrimaryButton } from "../../src/components/PrimaryButton";
 import { Screen } from "../../src/components/Screen";
@@ -286,6 +288,8 @@ export default function DestinationDetailScreen() {
     );
   }
 
+  const destinationImageSource = getDestinationImageSource(destination);
+
   return (
     <Screen edges={["left", "right"]} padded={false} scroll={false}>
       <ScrollView
@@ -295,8 +299,20 @@ export default function DestinationDetailScreen() {
       >
         <View style={styles.destinationCard}>
           <View style={styles.destinationArtwork}>
-            <View style={styles.destinationBlobOrange} />
-            <View style={styles.destinationBlobSage} />
+            {destinationImageSource ? (
+              <ImageBackground
+                imageStyle={styles.destinationImage}
+                source={destinationImageSource}
+                style={styles.destinationImageBackground}
+              >
+                <View style={styles.destinationImageOverlay} />
+              </ImageBackground>
+            ) : (
+              <>
+                <View style={styles.destinationBlobOrange} />
+                <View style={styles.destinationBlobSage} />
+              </>
+            )}
             <Text style={styles.destinationCode}>{destination.city.slice(0, 2).toUpperCase()}</Text>
           </View>
 
@@ -645,6 +661,17 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     padding: spacing.lg,
     position: "relative",
+  },
+  destinationImageBackground: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  destinationImage: {
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+  },
+  destinationImageOverlay: {
+    backgroundColor: "rgba(39, 34, 29, 0.18)",
+    flex: 1,
   },
   destinationBlobOrange: {
     backgroundColor: "#F09A57",

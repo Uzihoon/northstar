@@ -1,6 +1,7 @@
 import { ImageBackground, Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { Destination } from "../api/types";
+import { getDestinationImageSource } from "../assets/destinationImages";
 import { colors, radius, shadows, spacing, typography } from "../theme/tokens";
 import { Pill } from "./Pill";
 
@@ -10,12 +11,15 @@ type DestinationCardProps = {
 };
 
 export function DestinationCard({ destination, onPress }: DestinationCardProps) {
+  const imageSource = getDestinationImageSource(destination)
+    ?? (destination.hero_image_url ? { uri: destination.hero_image_url } : null);
+
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={styles.card}>
-      {destination.hero_image_url ? (
+      {imageSource ? (
         <ImageBackground
           imageStyle={styles.heroImage}
-          source={{ uri: destination.hero_image_url }}
+          source={imageSource}
           style={styles.imagePlaceholder}
         >
           <HeroOverlay destination={destination} />

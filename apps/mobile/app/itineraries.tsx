@@ -3,6 +3,7 @@ import { CalendarDays, ChevronRight, MapPin } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  ImageBackground,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,7 @@ import {
 
 import { listSavedPlans } from "../src/api/client";
 import type { SavedPlanSummary } from "../src/api/types";
+import { getDestinationImageSource } from "../src/assets/destinationImages";
 import { useAuth } from "../src/auth/AuthContext";
 import { AppTabBar, APP_TAB_BAR_OVERLAY_HEIGHT } from "../src/components/AppTabBar";
 import { PrimaryButton } from "../src/components/PrimaryButton";
@@ -118,13 +120,7 @@ export default function ItinerariesScreen() {
                   })}
                   style={styles.latestCard}
                 >
-                  <View style={styles.latestArtwork}>
-                    <View style={styles.latestBlobOrange} />
-                    <View style={styles.latestBlobSage} />
-                    <View style={styles.latestOrb}>
-                      <Text style={styles.latestOrbText}>{getDestinationInitials(latestPlan)}</Text>
-                    </View>
-                  </View>
+                  <LatestJourneyArtwork plan={latestPlan} />
 
                   <View style={styles.latestCopy}>
                     <View style={styles.latestMetaRow}>
@@ -211,6 +207,32 @@ export default function ItinerariesScreen() {
   );
 }
 
+function LatestJourneyArtwork({ plan }: { plan: SavedPlanSummary }) {
+  const imageSource = getDestinationImageSource(plan.destination);
+
+  return (
+    <View style={styles.latestArtwork}>
+      {imageSource ? (
+        <ImageBackground
+          imageStyle={styles.latestImage}
+          source={imageSource}
+          style={styles.latestImageBackground}
+        >
+          <View style={styles.latestImageOverlay} />
+        </ImageBackground>
+      ) : (
+        <>
+          <View style={styles.latestBlobOrange} />
+          <View style={styles.latestBlobSage} />
+        </>
+      )}
+      <View style={styles.latestOrb}>
+        <Text style={styles.latestOrbText}>{getDestinationInitials(plan)}</Text>
+      </View>
+    </View>
+  );
+}
+
 function JourneyCard({ plan }: { plan: SavedPlanSummary }) {
   return (
     <Pressable
@@ -221,9 +243,7 @@ function JourneyCard({ plan }: { plan: SavedPlanSummary }) {
       })}
       style={styles.planCard}
     >
-      <View style={styles.planArtwork}>
-        <Text style={styles.planArtworkText}>{getDestinationInitials(plan)}</Text>
-      </View>
+      <JourneyArtwork plan={plan} />
       <View style={styles.planCopy}>
         <View style={styles.planMetaRow}>
           <MapPin color={colors.sage} size={14} strokeWidth={2.2} />
@@ -236,6 +256,25 @@ function JourneyCard({ plan }: { plan: SavedPlanSummary }) {
       </View>
       <ChevronRight color={colors.muted} size={20} strokeWidth={2.2} />
     </Pressable>
+  );
+}
+
+function JourneyArtwork({ plan }: { plan: SavedPlanSummary }) {
+  const imageSource = getDestinationImageSource(plan.destination);
+
+  return (
+    <View style={styles.planArtwork}>
+      {imageSource ? (
+        <ImageBackground
+          imageStyle={styles.planImage}
+          source={imageSource}
+          style={styles.planImageBackground}
+        >
+          <View style={styles.planImageOverlay} />
+        </ImageBackground>
+      ) : null}
+      <Text style={styles.planArtworkText}>{getDestinationInitials(plan)}</Text>
+    </View>
   );
 }
 
@@ -409,6 +448,17 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     position: "relative",
   },
+  latestImageBackground: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  latestImage: {
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+  },
+  latestImageOverlay: {
+    backgroundColor: "rgba(39, 34, 29, 0.22)",
+    flex: 1,
+  },
   latestBlobOrange: {
     backgroundColor: "#F09A57",
     borderRadius: 100,
@@ -567,13 +617,25 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     height: 68,
     justifyContent: "center",
+    overflow: "hidden",
     width: 68,
+  },
+  planImageBackground: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  planImage: {
+    borderRadius: radius.md,
+  },
+  planImageOverlay: {
+    backgroundColor: "rgba(39, 34, 29, 0.28)",
+    flex: 1,
   },
   planArtworkText: {
     color: colors.background,
     fontSize: 20,
     fontWeight: "900",
     letterSpacing: 1,
+    zIndex: 1,
   },
   planCopy: {
     flex: 1,

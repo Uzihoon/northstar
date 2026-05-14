@@ -3,6 +3,7 @@ import { Search } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  ImageBackground,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,7 @@ import {
 
 import { listDestinations, listSavedPlans } from "../src/api/client";
 import type { Destination, SavedPlanSummary } from "../src/api/types";
+import { getDestinationImageSource } from "../src/assets/destinationImages";
 import { useAuth } from "../src/auth/AuthContext";
 import { AppTabBar, APP_TAB_BAR_OVERLAY_HEIGHT } from "../src/components/AppTabBar";
 import { DestinationCard } from "../src/components/DestinationCard";
@@ -278,31 +280,49 @@ export default function DashboardScreen() {
             showsHorizontalScrollIndicator={false}
           >
             {pastPlans.length > 0 ? (
-              pastPlans.map((plan) => (
-                <Pressable
-                  accessibilityRole="button"
-                  key={plan.plan_id}
-                  onPress={() => router.push({
-                    pathname: "/plans/[id]",
-                    params: { id: plan.plan_id },
-                  })}
-                  style={styles.pastJourneyCard}
-                >
-                  <View style={styles.pastJourneyImage}>
-                    <Text style={styles.pastJourneyImageText}>
-                      {plan.destination.slice(0, 2).toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={styles.pastJourneyCopy}>
-                    <Text numberOfLines={1} style={styles.pastJourneyTitle}>
-                      {plan.destination}
-                    </Text>
-                    <Text style={styles.pastJourneyDate}>
-                      {formatJourneyDate(plan.created_at)}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))
+              pastPlans.map((plan) => {
+                const imageSource = getDestinationImageSource(plan.destination);
+
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={plan.plan_id}
+                    onPress={() => router.push({
+                      pathname: "/plans/[id]",
+                      params: { id: plan.plan_id },
+                    })}
+                    style={styles.pastJourneyCard}
+                  >
+                    {imageSource ? (
+                      <ImageBackground
+                        imageStyle={styles.pastJourneyHeroImage}
+                        source={imageSource}
+                        style={styles.pastJourneyImage}
+                      >
+                        <View style={styles.pastJourneyImageOverlay}>
+                          <Text style={styles.pastJourneyImageText}>
+                            {plan.destination.slice(0, 2).toUpperCase()}
+                          </Text>
+                        </View>
+                      </ImageBackground>
+                    ) : (
+                      <View style={styles.pastJourneyImage}>
+                        <Text style={styles.pastJourneyImageText}>
+                          {plan.destination.slice(0, 2).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.pastJourneyCopy}>
+                      <Text numberOfLines={1} style={styles.pastJourneyTitle}>
+                        {plan.destination}
+                      </Text>
+                      <Text style={styles.pastJourneyDate}>
+                        {formatJourneyDate(plan.created_at)}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })
             ) : (
               <View style={styles.emptyPastJourneyCard}>
                 <Text style={styles.pastJourneyTitle}>No journeys yet</Text>
@@ -505,6 +525,17 @@ const styles = StyleSheet.create({
     height: 98,
     justifyContent: "center",
     overflow: "hidden",
+    width: "100%",
+  },
+  pastJourneyHeroImage: {
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+  },
+  pastJourneyImageOverlay: {
+    alignItems: "center",
+    backgroundColor: "rgba(39, 34, 29, 0.22)",
+    flex: 1,
+    justifyContent: "center",
     width: "100%",
   },
   pastJourneyImageText: {
