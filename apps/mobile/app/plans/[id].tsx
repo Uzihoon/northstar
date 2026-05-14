@@ -56,6 +56,7 @@ export default function PlanSummaryScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [dayTabViewportWidth, setDayTabViewportWidth] = useState(0);
+  const [dayTabY, setDayTabY] = useState(0);
   const dayTabScrollRef = useRef<ScrollView | null>(null);
   const scrollRef = useRef<ScrollView | null>(null);
 
@@ -135,10 +136,13 @@ export default function PlanSummaryScreen() {
     ? `Go to Day ${nextDayIndex + 1}`
     : "Go back to Day 1";
 
-  function jumpToDay(index: number) {
+  function selectDay(index: number) {
     setActiveDayIndex(index);
     requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ animated: true, y: 0 });
+      scrollRef.current?.scrollTo({
+        animated: true,
+        y: Math.max(0, dayTabY - spacing.md),
+      });
     });
   }
 
@@ -154,7 +158,7 @@ export default function PlanSummaryScreen() {
         </View>
 
         <View style={styles.heroContent}>
-          <Text numberOfLines={2} style={styles.title}>{plan.title}</Text>
+          <Text style={styles.title}>{plan.title}</Text>
           <View style={styles.destinationRow}>
             <MapPin color={colors.moss} size={17} strokeWidth={2.3} />
             <Text numberOfLines={1} style={styles.destination}>{plan.destination}</Text>
@@ -179,7 +183,10 @@ export default function PlanSummaryScreen() {
       <ScrollView
         contentContainerStyle={styles.dayTabs}
         horizontal
-        onLayout={(event) => setDayTabViewportWidth(event.nativeEvent.layout.width)}
+        onLayout={(event) => {
+          setDayTabViewportWidth(event.nativeEvent.layout.width);
+          setDayTabY(event.nativeEvent.layout.y);
+        }}
         ref={dayTabScrollRef}
         showsHorizontalScrollIndicator={false}
         style={styles.dayTabScroll}
@@ -189,7 +196,7 @@ export default function PlanSummaryScreen() {
             day={day}
             isActive={index === activeDayIndex}
             key={day.day_number}
-            onPress={() => setActiveDayIndex(index)}
+            onPress={() => selectDay(index)}
           />
         ))}
       </ScrollView>
@@ -214,7 +221,7 @@ export default function PlanSummaryScreen() {
         </View>
       ) : null}
 
-      <PrimaryButton label={nextDayLabel} onPress={() => jumpToDay(nextDayIndex)} tone="secondary" />
+      <PrimaryButton label={nextDayLabel} onPress={() => selectDay(nextDayIndex)} tone="secondary" />
     </Screen>
   );
 }
