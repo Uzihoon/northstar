@@ -208,7 +208,7 @@ export default function DashboardScreen() {
             <View style={styles.sectionHeaderCopy}>
               <Text style={styles.sectionTitle}>Curated for you</Text>
               <Text style={styles.sectionSubtitle}>
-                Places Nori can plan well right now. Use search or chips to narrow the vibe.
+                I know these places well enough to start sketching the good stuff.
               </Text>
             </View>
           </View>
@@ -259,7 +259,7 @@ export default function DashboardScreen() {
             <View style={styles.sectionHeaderCopy}>
               <Text style={styles.sectionTitle}>My Past Journeys</Text>
               <Text style={styles.sectionSubtitle}>
-                Reopen recent itineraries when you want to tweak, compare, or reuse one.
+                Trips we already mapped, ready for a second look.
               </Text>
             </View>
             <Pressable
