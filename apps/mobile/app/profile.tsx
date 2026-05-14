@@ -359,9 +359,9 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     color: colors.muted,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "400",
-    lineHeight: 22,
+    lineHeight: 21,
     marginTop: spacing.xs,
   },
   heroCard: {

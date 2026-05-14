@@ -210,8 +210,10 @@ const styles = StyleSheet.create({
     ...typography.heading,
   },
   subtitle: {
-    ...typography.body,
     color: colors.muted,
+    fontSize: 15,
+    fontWeight: "400",
+    lineHeight: 21,
   },
   errorCard: {
     backgroundColor: "#F7D4BD",

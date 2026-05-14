@@ -391,8 +391,10 @@ const styles = StyleSheet.create({
     color: colors.surface,
   },
   description: {
-    ...typography.body,
     color: "#E9F0E2",
+    fontSize: 15,
+    fontWeight: "400",
+    lineHeight: 21,
   },
   pillGrid: {
     flexDirection: "row",
