@@ -1,5 +1,5 @@
 import { Redirect, router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -25,9 +25,32 @@ const LOADING_LINES = [
 ];
 
 const POLL_INTERVAL_MS = 2000;
+const LOADING_LINE_MIN_DELAY_MS = 3000;
+const LOADING_LINE_MAX_DELAY_MS = 5000;
 
 function firstParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function getRandomLoadingLine(currentLine?: string): string {
+  if (LOADING_LINES.length === 1) {
+    return LOADING_LINES[0];
+  }
+
+  let nextLine = currentLine;
+
+  while (nextLine === currentLine) {
+    const index = Math.floor(Math.random() * LOADING_LINES.length);
+    nextLine = LOADING_LINES[index] ?? LOADING_LINES[0];
+  }
+
+  return nextLine ?? LOADING_LINES[0];
+}
+
+function getRandomLoadingLineDelayMs(): number {
+  const delayRange = LOADING_LINE_MAX_DELAY_MS - LOADING_LINE_MIN_DELAY_MS;
+
+  return LOADING_LINE_MIN_DELAY_MS + Math.floor(Math.random() * (delayRange + 1));
 }
 
 export default function PlanningRunScreen() {
@@ -36,11 +59,7 @@ export default function PlanningRunScreen() {
   const runId = firstParam(params.runId);
   const [run, setRun] = useState<ItineraryPlanRunResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const loadingLine = useMemo(() => {
-    const index = Math.floor(Math.random() * LOADING_LINES.length);
-
-    return LOADING_LINES[index] ?? LOADING_LINES[0];
-  }, []);
+  const [loadingLine, setLoadingLine] = useState(() => getRandomLoadingLine());
 
   const drift = useRef(new Animated.Value(0)).current;
   const bounce = useRef(new Animated.Value(0)).current;
@@ -79,6 +98,25 @@ export default function PlanningRunScreen() {
       bounceAnimation.stop();
     };
   }, [bounce, drift]);
+
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+
+    function scheduleNextLineChange() {
+      timeout = setTimeout(() => {
+        setLoadingLine((currentLine) => getRandomLoadingLine(currentLine));
+        scheduleNextLineChange();
+      }, getRandomLoadingLineDelayMs());
+    }
+
+    scheduleNextLineChange();
+
+    return () => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!runId) {
